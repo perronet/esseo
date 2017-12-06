@@ -61,7 +61,7 @@ int main(){
                 break;
             case 0:
                 //wait for all child process (use semaphore!)
-                execve("./child", NULL, NULL); //exec child code
+                execve("./child.out", NULL, NULL); //exec child code
                 TEST_ERROR;
                 exit(EXIT_FAILURE);
                 break;
