@@ -10,22 +10,19 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include "ipc-msg-lib.h"
 
-typedef struct shared_data{
+typedef struct data{
     char type;
     char name[500]; //arbitrary number, will fix
     unsigned long genome;
-} shared_data;
+} data;
 
-char rnd_char(int a){
-    char r;
+//should add pointer to shared memory shared_data (we can get its id with shmget using IPC_PRIVATE)
+
+char rnd_char(){
     srand(getpid()); //getpid() as seed is better, time(NULL) could generate many child with the same seed
-    if(!a){ 
-        r = (rand()%2)+97;  //random type
-    }else{      
-        r = (rand()%26)+65; //random name
-    }
-    return r;
+    return (rand()%26)+65; //random name 
 }
 
 unsigned long rnd_genome(int x, unsigned long genes){
@@ -35,9 +32,12 @@ unsigned long rnd_genome(int x, unsigned long genes){
 
 int main(){ 
     int i;
-    shared_data info;
-    info.type = rnd_char(0); //it's just a test, we'll use a shared memory segment in project.c to set these
-    info.name[0] = rnd_char(1);
+    int msgq_id, num_bytes; //will use message queue
+    long rcv_type;
+	struct msgbuf my_msg;
+    data info;
+    info.type = 'b'; 
+    info.name[0] = rnd_char();
     info.genome = rnd_genome(50, 100);
     printf("Hello! my PID is: %d, i'm type %c, my name is %c, my genome is %li\n", getpid(), info.type, info.name[0], info.genome);
 
