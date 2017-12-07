@@ -1,30 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <signal.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/sem.h>
-#define TEST_ERROR    if (errno) {dprintf(STDERR_FILENO, \
-					  "%s:%d: PID=%5d: Error %d (%s)\n", \
-					  __FILE__,			\
-					  __LINE__,			\
-					  getpid(),			\
-					  errno,			\
-					  strerror(errno));}
-
-typedef struct shared_data{ //info about each type A process will be posted here
-    unsigned long genome[4000]; //4000 is an arbitrary number, will fix
-    char name[4000]; 
-    pid_t pid[4000];
-    int msgq_id[4000];
-} shared_data;
-
+#include "my-lib.h"
 unsigned int birth_death; //global
 
 void handle_sigalarm(int signal) { 
@@ -43,19 +17,19 @@ int main(){
     birth_death = 4;
     unsigned long genes = 100;
 
-    int status, i, memid, pop_a = 0, pop_b = 0;
+    int status, i, memid;
     pid_t pid, child_pid;
     shared_data * infoshared;
     struct sembuf sops;
     struct sigaction sa;
+    char * args[] = {""};
     
     if(init_people < 2){
         fprintf(stderr,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'");
         init_people = 2;
     }
     //Compile child code
-    system("gcc type_A.c -o type_A.out"); 
-    system("gcc type_B.c -o type_B.out");
+    system("gcc type.c -o type.out"); 
     //Setup signal handler
 	sigset_t  my_mask;
     sa.sa_handler = &handle_sigalarm; 
@@ -68,7 +42,9 @@ int main(){
 	TEST_ERROR;
 	infoshared = shmat(memid, NULL, 0); //attach pointer
 	TEST_ERROR;
-    //char* args[] = {""}
+    //Init
+    infoshared->pop_a = 0;
+    infoshared->pop_b = 0;
     for(i=0;i<init_people;i++){
         switch(child_pid = fork()){
             case -1:
@@ -77,11 +53,13 @@ int main(){
                 break;
             case 0:
                 if(rnd_char() == 'a'){
+                    infoshared->pop_a++;//VA SEMAFORATO!
                     //wait for all child process (use semaphore here!)
-                    execve("./type_A.out", NULL, NULL);
+                    execve("./type.out", args, NULL);
                 }else{
+                    infoshared->pop_b++;//VA SEMAFORATO!
                     //wait for all child process (use the same semaphore here!)
-                    execve("./type_B.out", NULL, NULL);
+                    execve("./type.out", NULL, NULL);
                 }
                 TEST_ERROR;
                 exit(EXIT_FAILURE);
@@ -97,7 +75,7 @@ int main(){
     while (wait(&status) != -1) { } //"kill" all zombies!
     if(errno == ECHILD) {
 		printf("In PID=%6d, no more child processes\n", getpid());
-        printf("The population was A:%d, B:%d\n", pop_a, pop_b); //we should find a way to count these in the father process (maybe shared memory?)
+        printf("The population was A:%d, B:%d\n", infoshared->pop_a, infoshared->pop_b);
 		exit(EXIT_SUCCESS);
 	}else {
 		TEST_ERROR;
