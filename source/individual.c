@@ -1,4 +1,4 @@
-#include "my-lib.h"
+#include "lifeSimLib.h"
 
 char rnd_char(){
     srand(getpid()); //getpid() as seed is better, time(NULL) could generate many child with the same seed

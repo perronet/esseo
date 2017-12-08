@@ -1,4 +1,4 @@
-#include "my-lib.h"
+#include "lifeSimLib.h"
 unsigned int birth_death; //global
 
 void handle_sigalarm(int signal) { 
@@ -9,7 +9,7 @@ void handle_sigalarm(int signal) {
 
 char rnd_char(){
     srand(getpid()); //getpid() as seed is better, time(NULL) could generate many child with the same seed
-    return (rand()%2)+97; //random type
+    return (rand()%2)+'A'; //random type
 }
 
 int main(){
@@ -22,14 +22,14 @@ int main(){
     shared_data * infoshared;
     struct sembuf sops;
     struct sigaction sa;
-    char * args[] = {""};
+    char * args[] = {""}; 
     
     if(init_people < 2){
         fprintf(stderr,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'");
         init_people = 2;
     }
-    //Compile child code
-    system("gcc type.c -o type.out"); 
+    //Compile child code -- SHOULD BE NOW MADE BY MAKE
+    //system("gcc individual.c -o individual.out"); 
     //Setup signal handler
 	sigset_t  my_mask;
     sa.sa_handler = &handle_sigalarm; 
@@ -55,11 +55,11 @@ int main(){
                 if(rnd_char() == 'a'){
                     infoshared->pop_a++;//VA SEMAFORATO!
                     //wait for all child process (use semaphore here!)
-                    execve("./type.out", args, NULL);
+                    execve(INDIVIDUAL_FILE_NAME, args, NULL);
                 }else{
                     infoshared->pop_b++;//VA SEMAFORATO!
                     //wait for all child process (use the same semaphore here!)
-                    execve("./type.out", NULL, NULL);
+                    execve(INDIVIDUAL_FILE_NAME, NULL, NULL);
                 }
                 TEST_ERROR;
                 exit(EXIT_FAILURE);

@@ -17,7 +17,8 @@
 					  getpid(),			\
 					  errno,			\
 					  strerror(errno));}
-#define MSG_LEN 120
+#define MSG_LEN 120 
+#define INDIVIDUAL_FILE_NAME "./individual.out"
 
 typedef struct shared_data{ //info about each type A process will be posted here
     unsigned long genome[4000]; //4000 is an arbitrary number, will fix
