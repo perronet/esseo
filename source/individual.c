@@ -1,29 +1,22 @@
 #include "lifeSimLib.h"
 
-char rnd_char(){
-    srand(getpid()); //getpid() as seed is better, time(NULL) could generate many child with the same seed
-    return (rand()%26)+65; //random name 
-}
 
-unsigned long rnd_genome(int x, unsigned long genes){
-    srand(getpid());
-    return rand()%((x+genes)+1-x)+x; 
-}
 
 int main(int argc, char *argv[]){ 
     int i;
     int memid, msgq_id, num_bytes; //will use message queue
     long rcv_type;
 	msgbuf my_msg;
-    data info;
-    shared_data * infoshared; 
-    if(argc == 2){
-        info.type = 'a';
-    }else{
-        info.type = 'b';
+    ind_data info;
+    shared_data * infoshared;
+
+    if(argc >= 4)
+    {//Read data
+        info.type = *argv[1];
+        info.name[0] = *argv[2];//Wrong since this has to become a string
+        info.genome = *argv[3];//WRONG, have to find conversion from string to long
     }
-    info.name[0] = rnd_char();
-    info.genome = rnd_genome(50, 100);
+
     printf("Hello! my PID is: %d, i'm type %c, my name is %c, my genome is %li\n", getpid(), info.type, info.name[0], info.genome);
 
     memid = shmget(IPC_PRIVATE, sizeof(*infoshared), 0666);

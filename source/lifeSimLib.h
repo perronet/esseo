@@ -10,6 +10,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+
 #define TEST_ERROR    if (errno) {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error %d (%s)\n", \
 					  __FILE__,			\
@@ -17,9 +18,27 @@
 					  getpid(),			\
 					  errno,			\
 					  strerror(errno));}
+
+#define CHECK_VALID_IND_TYPE(type) if(type != 'A' && type != 'B') \
+					  {fprintf(stderr, \
+					  "%s:%d: PID=%5d: Error:%s '%c'\n", \
+					  __FILE__,			\
+					  __LINE__,			\
+					  getpid(),			\
+					  "Individual type has to be 'A' or 'B', found", \
+					  type);			\
+					  exit(0);			\
+					}
+/*
+#define ULONG_TO_STRING_DECLARE (n, string_name) char string_name [50];\//should be long enough, maybe we can compute the actual value with sizeof(long)
+            			int cacca = sprintf (string_name, "%lu", n);\
+            			*/
+
 #define MSG_LEN 120 
+#define MAX_NAME_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
 
+//THE BELOW STRUCT IS WRONG, PLUS WE WANT AN ARRAY OF STRUCTS, not a struct with arrays
 typedef struct shared_data{ //info about each type A process will be posted here
     unsigned long genome[4000]; //4000 is an arbitrary number, will fix
     char name[4000]; 
@@ -30,9 +49,9 @@ typedef struct shared_data{ //info about each type A process will be posted here
 
 typedef struct data{
     char type;
-    char name[500]; //arbitrary number, will fix
+    char name[MAX_NAME_LEN]; //arbitrary number, will fix
     unsigned long genome;
-} data;
+} ind_data;
 
 typedef struct msgbuf {
 	long mtype;             
