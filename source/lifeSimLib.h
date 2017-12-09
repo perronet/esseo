@@ -11,6 +11,9 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 
+#define true 1;
+#define false 0;
+
 #define TEST_ERROR    if (errno) {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error %d (%s)\n", \
 					  __FILE__,			\
@@ -18,8 +21,9 @@
 					  getpid(),			\
 					  errno,			\
 					  strerror(errno));}
-
-#define CHECK_VALID_IND_TYPE(type) if(type != 'A' && type != 'B') \
+#define IS_TYPE_A(type) (type == 'A')
+#define IS_TYPE_B(type) (type == 'B')
+#define CHECK_VALID_IND_TYPE(type) if(!IS_TYPE_A(type) && !IS_TYPE_B(type)) \
 					  {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error:%s '%c'\n", \
 					  __FILE__,			\
@@ -29,31 +33,36 @@
 					  type);			\
 					  exit(0);			\
 					}
-/*
-#define ULONG_TO_STRING_DECLARE (n, string_name) char string_name [50];\//should be long enough, maybe we can compute the actual value with sizeof(long)
-            			int cacca = sprintf (string_name, "%lu", n);\
-            			*/
 
 #define MSG_LEN 120 
 #define MAX_NAME_LEN 300
+#define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
 
-//THE BELOW STRUCT IS WRONG, PLUS WE WANT AN ARRAY OF STRUCTS, not a struct with arrays
-typedef struct shared_data{ //info about each type A process will be posted here
-    unsigned long genome[4000]; //4000 is an arbitrary number, will fix
-    char name[4000]; 
-    pid_t pid[4000];
-    int msgq_id[4000];
-    unsigned int pop_a, pop_b;
-} shared_data;
+typedef char bool;
 
+//This struct rapresent the data defining single individual
 typedef struct data{
-    char type;
-    char name[MAX_NAME_LEN]; //arbitrary number, will fix
-    unsigned long genome;
+    char type; //Type of the individual, can be A or B.
+    char name[MAX_NAME_LEN];//Name of the individual
+    unsigned long genome;//Genome of the individual
+    pid_t pid;//Pid of the individual
 } ind_data;
 
+//Contains all the public data
+typedef struct shared_data{
+	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
+    unsigned int pop_a, pop_b;//Total count of the population
+} shared_data;
+
+//Message struct used by individuals to communicate
 typedef struct msgbuf {
 	long mtype;             
 	char mtext[MSG_LEN];    
 } msgbuf;
+
+//Converts the given string into an unsigned long
+unsigned long string_to_ulong(char * c);
+
+//Copies the content of the struct from the given source to the given dest
+void ind_data_cpy(ind_data * dest, ind_data * src);
