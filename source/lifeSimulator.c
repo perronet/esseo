@@ -24,10 +24,14 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 20, // initial population value
+    unsigned int init_people = 5, // initial population value
     				sim_time = 40; // total duration of simulation
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
+
+#if CM_DEBUG_COUPLE
+    init_people = 2;
+#endif
 
     int status, i, semid, msgid;
     pid_t pid;
@@ -38,7 +42,7 @@ int main(){
         init_people = 2;
     }
 
-    //Setup signal handler
+	//***Init of signal handlers
 	sigset_t  my_mask;
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
@@ -46,16 +50,40 @@ int main(){
 	sa.sa_mask = my_mask;
     sigaction(14, &sa, NULL);
 
-    //Create shared memory
+	//***Init of shared memory
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
+    int memid;
+    memid = shmget(IPC_PRIVATE, sizeof(shared_data), 0666 | IPC_CREAT);
+    TEST_ERROR;
+    shmctl ( memid , IPC_RMID , NULL ) ;
+    TEST_ERROR;
+#endif
     shared_data * infoshared = get_shared_data();
 
-    //Initialize semaphores and message queue
-    semid = semget(SEMAPHORE_SET_KEY, 2, 0666 | IPC_CREAT); //Array of 2 semaphores
-    msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
+	//***Init of semaphores
+    semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
 	TEST_ERROR;
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate semaphores
+	semctl(semid, 0, IPC_RMID);    
+	TEST_ERROR;
+    semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
+	TEST_ERROR;
+#endif
+
 	semctl(semid, SEM_NUM_INIT, SETVAL, init_people+1);//Sem init to syncronize the start of the individuals, initialized to init_people+1
+	TEST_ERROR;
     semctl(semid, SEM_NUM_MUTEX, SETVAL, 1);//Sem mutex to control access to the shared memory, initialized to 1
 	TEST_ERROR;
+
+	//***Init of message queues
+	msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
+	TEST_ERROR;
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate the queue to avoid messages from precedent runs
+    msgctl ( msgid , IPC_RMID , NULL ) ;//Empty the queue if already present
+	TEST_ERROR;
+    msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
+	TEST_ERROR;
+#endif
     
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
@@ -66,6 +94,14 @@ int main(){
     for(i=0;i<init_people;i++){
     	nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
         nextName[0] = rnd_char();
+
+#if CM_DEBUG_COUPLE //Only two individuals will be created, one for each type. This is a debug mode
+		if(i)
+			nextType = 'B';
+			else        
+			nextType = 'A';
+#endif
+
         create_individual(nextType,nextName,rnd_genome(2, genes));//Only the father will return from this call
     } 
     

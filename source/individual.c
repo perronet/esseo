@@ -40,11 +40,11 @@ int main(int argc, char *argv[]){
 	    sops.sem_op = 0;
         semop(semid, &sops, 1);//Waits for semaphore to become 0 then everybody starts simultaneously
 		TEST_ERROR;
-        printf("pid %d Let's go!\n", getpid());
+        //printf("pid %d Let's go!\n", getpid());
         fflush(stdout);
     }
 
-    //printf("Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
+    printf("Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
 
     //****************************************************************
     //EXECUTE BEHAVIOUR
@@ -82,9 +82,10 @@ void a_behaviour(){
     sops.sem_op = 1;
     semop(semid, &sops, 1);//Releasing resource
     //Test message queue
-    msgrcv(msgid, &mex, MSG_LEN, 0, 0);
+    msgrcv(msgid, &mex, MSGBUF_LEN, 0, 0);
+	TEST_ERROR;
     //FIXME can't print struct info properly! for some reason it prints fine in b_behaviour but prints random shit here! 
-    printf("Process A %d, i received:%s. here's your (wrong) info:%c, %lu, %d\n", getpid(), mex.mtext, mex.info.type, mex.info.genome, mex.info.pid);
+    printf("A %d, MSG:%s **** RECEIVED %c, %lu, %d\n", getpid(), mex.mtext, mex.info.type, mex.info.genome, mex.info.pid);
     fflush(stdout);
 }
 
@@ -102,10 +103,11 @@ void b_behaviour(){
     mex.mtype = 333;//TODO Should actually be set with the pid of the A process (get it from shared memory segment)
     ind_data_cpy(&(mex.info), &info);
     //Testing... (IT PRINTS PROPERLY HERE!)
-    printf("Info in message:%c, %lu, %d\n", mex.info.type, mex.info.genome, mex.info.pid); 
+    printf("SENDING***:%c, %lu, %d\n", mex.info.type, mex.info.genome, mex.info.pid); 
     fflush(stdout);
-    strcpy(mex.mtext, "Hey baby i'm a process B, wanna fuck?");
-    msgsnd(msgid, &mex, MSG_LEN, 0);
+    strcpy(mex.mtext, "***message!***");
+    msgsnd(msgid, &mex, MSGBUF_LEN, 0);
+	TEST_ERROR;
 }
 
 

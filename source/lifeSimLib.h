@@ -12,8 +12,8 @@
 #include <sys/sem.h>
 #include <sys/msg.h>
 
-#define true 1;
-#define false 0;
+#define true 1
+#define false 0
 
 #define TEST_ERROR    if (errno) {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error %d (%s)\n", \
@@ -39,10 +39,26 @@
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
-#define SEMAPHORE_SET_KEY 578412563
-#define MSGQ_KEY 123456789
-#define SEM_NUM_MUTEX 0 //Used to control mutual exclusion
-#define SEM_NUM_INIT 1 //Used to manage the syncronization of the initialization (all individuals have to wait the others before starting)
+
+#define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key
+#define MSGQ_KEY 123456789 //TODO replace this with non-hardcoded key
+
+enum semaphores_set_types{
+	SEM_NUM_MUTEX, //Used to control mutual exclusion
+	SEM_NUM_INIT, //Used to manage the syncronization of the initialization (all individuals have to wait the others before starting)
+	SEM_NUM_MAX //Useful to get the number of semaphores
+};
+
+//****************************************************************
+//COMPILE MODES
+//****************************************************************
+
+#define CM_DEBUG_COUPLE true //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
+#define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
+
+//****************************************************************
+//LIBRARY FUNCTIONS
+//****************************************************************
 
 typedef char bool;
 struct sembuf sops;
@@ -68,6 +84,8 @@ typedef struct msgbuf {
 	char mtext[MSG_LEN];    
     ind_data info;
 } msgbuf;
+
+#define MSGBUF_LEN (sizeof(msgbuf) - sizeof(long))
 
 //Converts the given string into an unsigned long
 unsigned long string_to_ulong(char * c);
