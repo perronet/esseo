@@ -14,6 +14,7 @@
 
 #define true 1
 #define false 0
+#define forever for(;;)
 
 #define TEST_ERROR    if (errno) {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error %d (%s)\n", \
@@ -35,7 +36,7 @@
 					  exit(0);			\
 					}
 
-#define MSG_LEN 120 
+//#define MSG_LEN 10 
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
@@ -81,7 +82,7 @@ typedef struct shared_data{
 //Message struct used by individuals to communicate
 typedef struct msgbuf {
 	long mtype;             
-	char mtext[MSG_LEN];    
+	char mtext;    
     ind_data info;
 } msgbuf;
 
@@ -95,3 +96,6 @@ void ind_data_cpy(ind_data * dest, ind_data * src);
 
 //Attaches to shared memory and gets the shared memory structs
 shared_data * get_shared_data();
+
+//Remove an individual from the public agenda. Return true if found, false otherwise
+bool remove_from_agenda(ind_data * agenda, pid_t individual);

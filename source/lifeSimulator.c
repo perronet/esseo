@@ -120,7 +120,17 @@ int main(){
 
     state = RUNNING; 
     alarm(birth_death); //Will send sigalarm every birth_death seconds
-    sleep(10); //just a test to trigger the alarm
+
+    forever{
+	    msgbuf msg;
+	    msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
+	    printf("magic happened for %d!\n",msg.info.pid);
+	    msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
+	    printf("magic happened for %d!\n",msg.info.pid);
+	    exit(EXIT_SUCCESS);
+	}
+    
+    sleep(2); //just a test to trigger the alarm
 
     //****************************************************************
     //CONCLUSION OF SIMULATION / PRINT STATISTICS
