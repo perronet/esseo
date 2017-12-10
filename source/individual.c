@@ -83,7 +83,7 @@ void a_behaviour(){
     semop(semid, &sops, 1);//Releasing resource
     //Test message queue
     msgrcv(msgid, &mex, MSG_LEN, 0, 0);
-    //FIXME can't print struct info properly! for some reason it prints fine in b_behaviour but prints random shit here! (we should use pointers to struct and not copy entire structs!!!)
+    //FIXME can't print struct info properly! for some reason it prints fine in b_behaviour but prints random shit here! 
     printf("Process A %d, i received:%s. here's your (wrong) info:%c, %lu, %d\n", getpid(), mex.mtext, mex.info.type, mex.info.genome, mex.info.pid);
     fflush(stdout);
 }
@@ -101,10 +101,10 @@ void b_behaviour(){
     //Test message queue
     mex.mtype = 333;//TODO Should actually be set with the pid of the A process (get it from shared memory segment)
     ind_data_cpy(&(mex.info), &info);
-    //Testing...
+    //Testing... (IT PRINTS PROPERLY HERE!)
     printf("Info in message:%c, %lu, %d\n", mex.info.type, mex.info.genome, mex.info.pid); 
     fflush(stdout);
-    strcpy(mex.mtext, "CIAO sono un processo B, vuoi accoppiarti?");
+    strcpy(mex.mtext, "Hey baby i'm a process B, wanna fuck?");
     msgsnd(msgid, &mex, MSG_LEN, 0);
 }
 
