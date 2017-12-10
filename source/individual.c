@@ -1,9 +1,8 @@
 #include "lifeSimLib.h"
 
 ind_data info;
+int semid;
 
-//Attaches to shared memory and gets the shared memory structs
-shared_data * get_shared_data();
 //Here is implemented the behaviour of "A" type individuals
 void a_behaviour();
 //Here is implemented the behaviour of "B" type individuals
@@ -15,7 +14,6 @@ int main(int argc, char *argv[]){
     //****************************************************************
     //SETTING UP PERSONAL INFORMATION
     //****************************************************************
-
     bool wait_to_begin = false;//when the individual starts, it could have to wait before beginning its behaviour. This is passed via arguments
     if(argc >= 5)
     {//Read data. Currently the positions of this values are hardcoded. We do not expect them to be scrambled
@@ -24,19 +22,28 @@ int main(int argc, char *argv[]){
         info.genome = string_to_ulong(argv[3]);
         wait_to_begin = *argv[4];
     }
-    printf("Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
-
+    //printf("Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
+    //Set semaphore operations
+    semid = semget(123456789, 2, 0666); //FIXME I USED A HARDCODED KEY
+	TEST_ERROR;
+    sops.sem_num = 0;//check the 0-th semaphore
+	sops.sem_flg = 0; 
+    sops.sem_op = -1;
     if(wait_to_begin)
     {
-        printf("WAITING!\n");
-        //#TODO "POPULATE" SEMAPHORE wait
+        printf("pid %d WAITING!\n", getpid());
+        fflush(stdout);
+        semop(semid, &sops, 1);
+        printf("pid %d Let's go!\n", getpid());
+        fflush(stdout);
     }
 
     //****************************************************************
     //EXECUTE BEHAVIOUR
     //****************************************************************
 
-    if(IS_TYPE_A(info.type))
+    sops.sem_num = 1;//Will always use semaphore 1 from now on (it's initialized to 1)
+    if(info.type == 'A')
         a_behaviour();
     else if(IS_TYPE_B(info.type))
         b_behaviour();
@@ -52,8 +59,8 @@ int main(int argc, char *argv[]){
 
 void a_behaviour(){
     shared_data * infoshared = get_shared_data();
-
-    //#TODO "MUTEX" SEMAPHORE WAIT
+    sops.sem_op = -1;
+    semop(semid, &sops, 1);//Accessing resource
     printf("Let's publish shit!\n");
     for(int i = 0; i < MAX_AGENDA_LEN; i++)
     {//Find a nice spot to place information
@@ -63,18 +70,20 @@ void a_behaviour(){
 
         //}
     }
-    //#TODO "MUTEX" SEMAPHORE SIGNAL
+    sops.sem_op = 1;
+    semop(semid, &sops, 1);//Releasing resource
 }
 
 void b_behaviour(){
     shared_data * infoshared = get_shared_data();
-
-    //#TODO "MUTEX" SEMAPHORE WAIT
+    sops.sem_op = -1;
+    semop(semid, &sops, 1);//Accessing resource
     printf("Let's find bitches!\n");
     for(int i = 0; i < MAX_AGENDA_LEN; i++)
     {//Find a possible partner
     }
-    //#TODO "MUTEX" SEMAPHORE SIGNAL
+    sops.sem_op = 1;
+    semop(semid, &sops, 1);//Releasing resource
 }
 
 
@@ -87,12 +96,3 @@ void b_behaviour(){
 //HELPER FUNCTIONS
 //****************************************************************
 
-shared_data * get_shared_data(){
-    shared_data * infoshared;
-    int memid;
-    memid = shmget(IPC_PRIVATE, sizeof(*infoshared), 0666);
-    TEST_ERROR;
-    infoshared = shmat(memid, NULL, 0); //attach pointer
-    TEST_ERROR;
-    return infoshared;
-}

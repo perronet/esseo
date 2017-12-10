@@ -40,6 +40,8 @@
 #define INDIVIDUAL_FILE_NAME "./individual.out"
 
 typedef char bool;
+struct sembuf sops;
+struct sigaction sa;
 
 //This struct rapresent the data defining single individual
 typedef struct data{
@@ -51,8 +53,8 @@ typedef struct data{
 
 //Contains all the public data
 typedef struct shared_data{
+    unsigned long wr_id;//Next index where to write
 	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
-    unsigned int pop_a, pop_b;//Total count of the population
 } shared_data;
 
 //Message struct used by individuals to communicate
@@ -66,3 +68,6 @@ unsigned long string_to_ulong(char * c);
 
 //Copies the content of the struct from the given source to the given dest
 void ind_data_cpy(ind_data * dest, ind_data * src);
+
+//Attaches to shared memory and gets the shared memory structs
+shared_data * get_shared_data();
