@@ -38,6 +38,9 @@
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
+#define SEMAPHORE_SET_KEY 578412563
+#define SEM_NUM_MUTEX 0 //Used to control mutual exclusion
+#define SEM_NUM_INIT 1 //Used to manage the syncronization of the initialization (all individuals have to wait the others before starting)
 
 typedef char bool;
 struct sembuf sops;

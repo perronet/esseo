@@ -45,16 +45,16 @@ int main(){
 	sigemptyset(&my_mask);        
 	sa.sa_mask = my_mask;
     sigaction(14, &sa, NULL);
+
     //Create shared memory
     shared_data * infoshared = get_shared_data();
-    //Initialize semaphore
-    semid = semget(123456789, 2, 0666 | IPC_CREAT); //Array of 2 semaphores FIXME I USED A HARDCODED KEY
+
+    //Initialize semaphores
+    semid = semget(SEMAPHORE_SET_KEY, 2, 0666 | IPC_CREAT); //Array of 2 semaphores
 	TEST_ERROR;
-	semctl(semid, 0, SETVAL, 0);//Sem 0 to syncronize the start of the individuals, initialized to 0
-    semctl(semid, 1, SETVAL, 1);//Sem 1 (mutex) to control access to the shared memory, initialized to 1
+	semctl(semid, SEM_NUM_INIT, SETVAL, init_people+1);//Sem init to syncronize the start of the individuals, initialized to init_people+1
+    semctl(semid, SEM_NUM_MUTEX, SETVAL, 1);//Sem mutex to control access to the shared memory, initialized to 1
 	TEST_ERROR;
-	sops.sem_num = 0;//check the 0-th semaphore
-	sops.sem_flg = 0; 
     
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
@@ -68,17 +68,21 @@ int main(){
         create_individual(nextType,nextName,rnd_genome(2, genes));//Only the father will return from this call
     } 
     
+	sops.sem_num = SEM_NUM_INIT;//check the 0-th semaphore
+	sops.sem_flg = 0; 
+    sops.sem_op = -1;
+    sleep(1);
+    printf("Children can go!\n");
+    sleep(1);
+	semop(semid, &sops, 1); //All individuals can start simultaneously now
+    fflush(stdout);
+    sops.sem_op = 0;
+	semop(semid, &sops, 1); //Let's wait for the other processes to increment the semaphore
+
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
-    sops.sem_op = init_people;
-	semop(semid, &sops, 1); //All individuals can start simultaneously now 
 
-/*******IMPORTANT********/
-//FIXME they don't start simultaneously, there's too much code between the fork and when the child does actually wait on the semaphore... the father process unlocks it way before every child is stuck on that semaphore. just notice how only a bunch of individuals (most of the times 3) get stuck on the semaphore before the father unlocks it! i think children should wait on the semafore even before the execve.
-
-    printf("Children can go!\n");
-    fflush(stdout);
     state = RUNNING; 
     alarm(birth_death); //Will send sigalarm every birth_death seconds
     sleep(10); //just a test to trigger the alarm
@@ -100,7 +104,8 @@ int main(){
 		TEST_ERROR;
 		exit(EXIT_FAILURE);
 	}
-        
+	
+	semctl(semid, 0, IPC_RMID);    
 	return 0;
 }
 
