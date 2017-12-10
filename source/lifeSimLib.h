@@ -64,6 +64,7 @@ enum semaphores_set_types{
 typedef char bool;
 struct sembuf sops;
 struct sigaction sa;
+sigset_t  my_mask;
 
 //This struct rapresent the data defining single individual
 typedef struct data{

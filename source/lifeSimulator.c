@@ -24,7 +24,7 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 5, // initial population value
+    unsigned int init_people = 20, // initial population value
     				sim_time = 40; // total duration of simulation
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
@@ -42,13 +42,21 @@ int main(){
         init_people = 2;
     }
 
-	//***Init of signal handlers
-	sigset_t  my_mask;
+	//***Init of signal handlers and mask
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
-	sigemptyset(&my_mask);        
-	sa.sa_mask = my_mask;
-    sigaction(14, &sa, NULL);
+	sigemptyset(&my_mask); 
+    sigaddset(&my_mask, SIGINT);   
+    sigaddset(&my_mask, SIGTERM);    
+    sigaddset(&my_mask, SIGQUIT);
+    sigprocmask(SIG_BLOCK, &my_mask, NULL); //Set process mask so that this process ignores interrupt signals 
+    sa.sa_mask = my_mask; //Signals to be masked in handler (redundant, same as process mask)
+    sigaction(SIGALRM, &sa, NULL);
+    
+    //Testing signals (the process will ignore them!)
+    raise(SIGINT);
+    raise(SIGTERM);
+    raise(SIGQUIT);
 
 	//***Init of shared memory
 #if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
@@ -91,6 +99,8 @@ int main(){
 
     pop_a = 0;
     pop_b = 0;
+    srand(getpid() + time(NULL) + pop_a + pop_b);//FIXME This works but it's weak and ugly, needs replacement
+
     for(i=0;i<init_people;i++){
     	nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
         nextName[0] = rnd_char();
@@ -108,8 +118,6 @@ int main(){
 	sops.sem_num = SEM_NUM_INIT;
 	sops.sem_flg = 0; 
     sops.sem_op = -1;
-    /*printf("Children can go!\n");
-    fflush(stdout);*/
 	semop(semid, &sops, 1);
     sops.sem_op = 0;
 	semop(semid, &sops, 1); //Let's wait for the other processes to decrement the semaphore
@@ -130,7 +138,7 @@ int main(){
 	    exit(EXIT_SUCCESS);
 	}
     
-    sleep(2); //just a test to trigger the alarm
+    //sleep(2); //just a test to trigger the alarm
 
     //****************************************************************
     //CONCLUSION OF SIMULATION / PRINT STATISTICS
@@ -139,7 +147,7 @@ int main(){
     state = FINISHED;//this could be moved to the handler of the end of simulation
 
     while ((pid = wait(&status)) != -1) {
-        printf("Got info of child with PID=%d, status=0x%04X\n", pid, status); //uncomment to see each exit status
+        printf("Got info of child with PID=%d, status=0x%04X\n", pid, status);
     } //"kill" all zombies!
     if(errno == ECHILD) {
 		printf("In PID=%6d, no more child processes\n", getpid());
@@ -158,18 +166,15 @@ int main(){
 //INDIVIDUALS CREATION FUNCTIONS
 //****************************************************************
 
-char new_individual_type(float a_type_probability){
-    srand(getpid() + time(NULL) + pop_a + pop_b);//FIXME This works but it's weak and ugly, needs replacement
+char new_individual_type(float a_type_probability){    
     return rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B'; //random type
 }
 
 unsigned long rnd_genome(int x, unsigned long genes){
-    srand(getpid() + time(NULL) + pop_a + pop_b);//FIXME This works but it's weak and ugly, needs replacement
     return rand()%genes+x; //Random unsigned long from x to genes+x
 }
 
 char rnd_char(){
-    srand(getpid() + time(NULL) + pop_a + pop_b);//FIXME This works but it's weak and ugly, needs replacement
     return (rand()%26)+ 'A'; //random name 
 }
 

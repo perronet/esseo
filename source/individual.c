@@ -9,16 +9,29 @@ void a_behaviour();
 void b_behaviour();
 //Send a message with the given type, message and individual data
 void send_message(pid_t to, char msg, ind_data * content);
+//Signal handler
+void handle_sigusr(int signal);
+//-1 on semaphore + block signals
+void access_resource();
+//+1 on semaphore + unblock signals
+void release_resource();
 
 int main(int argc, char *argv[]){
 
-    //****************************************************************
-    //SETTING UP PERSONAL INFORMATION
-    //****************************************************************
+    //***Init of signal handlers and mask
+    sa.sa_handler = &handle_sigusr; 
+	sa.sa_flags = 0; 
+	sigemptyset(&my_mask); 
+    sa.sa_mask = my_mask; //do not mask any signal in handler
+    sigaddset(&my_mask, SIGUSR1);
+    sigaction(SIGUSR1, &sa, NULL);
+
     semid = semget(SEMAPHORE_SET_KEY, 2, 0666);//FIXME replace key
     msgid = msgget(MSGQ_KEY, 0666);//FIXME replace key
 	TEST_ERROR;
-    
+    //****************************************************************
+    //SETTING UP PERSONAL INFORMATION
+    //****************************************************************    
     bool wait_to_begin = false;//when the individual starts, it could have to wait before beginning its behaviour. This is passed via arguments
     info.pid = getpid();
     if(argc >= 5)
@@ -73,10 +86,8 @@ void a_behaviour(){
     //****************************************************************
     //PUBLISH INFO TO AGENDA
     //****************************************************************
-
-    sops.sem_op = -1;
-    semop(semid, &sops, 1);//Accessing resource
-
+    
+    access_resource();
     ind_data * current_slot = NULL;
     for(int i = 0; i < MAX_AGENDA_LEN && !current_slot; i++)
     {//Find a nice spot to place information
@@ -87,9 +98,7 @@ void a_behaviour(){
             current_slot = slot;
         }
     }
-    sops.sem_op = 1;
-    semop(semid, &sops, 1);//Releasing resource
-
+    release_resource();
     //****************************************************************
     //WAIT FOR PROPOSALS
     //****************************************************************
@@ -101,10 +110,7 @@ void a_behaviour(){
         //****************************************************************
         //THIS INDIVIDUAL HAS BEEN CONTACTED. LET'S LOOK
         //****************************************************************
-        sops.sem_op = -1;
-        semop(semid, &sops, 1);//Accessing resource
-    	TEST_ERROR;
-        
+        access_resource();  
         printf("Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
 
         //printf("ind type A %d, **** RECEIVED %c, %lu, %d\n", getpid(), msg.mtext, msg.info.type, msg.info.genome, msg.info.pid);
@@ -122,14 +128,12 @@ void a_behaviour(){
             send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
             send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid of the partner
 
-            sops.sem_op = 1;
-            semop(semid, &sops, 1);//Releasing resource
+            release_resource();
 
             exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
         }
 
-        sops.sem_op = 1;
-        semop(semid, &sops, 1);//Releasing resource
+        release_resource();
 
         msgsnd(msgid, &msg, MSGBUF_LEN, 0);
     }
@@ -139,8 +143,7 @@ void b_behaviour(){
     shared_data * infoshared = get_shared_data();
     for(int i = 0; i < MAX_AGENDA_LEN; i++)
     {//Find a possible partner
-        sops.sem_op = -1;
-        semop(semid, &sops, 1);//Accessing resource
+        access_resource();
         if(IS_TYPE_A(infoshared->agenda[i].type))
         {
             if(true)//TODO ADD HEURISTIC OF REQUEST SENDING DECISION
@@ -150,14 +153,12 @@ void b_behaviour(){
                 
                 send_message(infoshared->agenda[i].pid,'Y', &info);
 
-                sops.sem_op = 1;
-                semop(semid, &sops, 1);//Releasing resource
+                release_resource();
 
                 msgbuf msg;
                 msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
 
-                sops.sem_op = -1;
-                semop(semid, &sops, 1);//Accessing resource
+                access_resource();
 
                 if(msg.mtext == 'Y')
                 {//We got lucky
@@ -166,14 +167,12 @@ void b_behaviour(){
 
                     send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid of the partner
 
-                    sops.sem_op = 1;
-                    semop(semid, &sops, 1);//Releasing resource
+                    release_resource();
 
                     exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
                 }
             }
-            sops.sem_op = 1;
-            semop(semid, &sops, 1);//Releasing resource
+            release_resource();
         }
 
         if(i >= MAX_AGENDA_LEN-1)
@@ -198,7 +197,26 @@ void send_message(pid_t to, char msg_text, ind_data * content)
     msgsnd(msgid, &msg, MSGBUF_LEN, 0);
 }
 
+void handle_sigusr(int signal){ 
+    //If here this individual is marked for death, must handle this kind of situation
+    printf("pid %d marked for death!\n", getpid());
+}
+
 //****************************************************************
 //HELPER FUNCTIONS
 //****************************************************************
 
+//These two functions will always use the SEM_NUM_MUTEX semaphore
+void access_resource(){
+    sops.sem_op = -1;
+    semop(semid, &sops, 1);//Accessing resource
+    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals 
+    TEST_ERROR;
+}
+
+void release_resource(){
+    sops.sem_op = 1;
+    semop(semid, &sops, 1);//Releasing resource
+    TEST_ERROR;
+    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals
+}
