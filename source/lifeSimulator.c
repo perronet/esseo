@@ -29,7 +29,7 @@ int main(){
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
 
-    int status, i, semid;
+    int status, i, semid, msgid;
     pid_t pid;
     char nextType, nextName[MAX_NAME_LEN];
     
@@ -49,8 +49,9 @@ int main(){
     //Create shared memory
     shared_data * infoshared = get_shared_data();
 
-    //Initialize semaphores
+    //Initialize semaphores and message queue
     semid = semget(SEMAPHORE_SET_KEY, 2, 0666 | IPC_CREAT); //Array of 2 semaphores
+    msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
 	TEST_ERROR;
 	semctl(semid, SEM_NUM_INIT, SETVAL, init_people+1);//Sem init to syncronize the start of the individuals, initialized to init_people+1
     semctl(semid, SEM_NUM_MUTEX, SETVAL, 1);//Sem mutex to control access to the shared memory, initialized to 1
@@ -68,17 +69,15 @@ int main(){
         create_individual(nextType,nextName,rnd_genome(2, genes));//Only the father will return from this call
     } 
     
-	sops.sem_num = SEM_NUM_INIT;//check the 0-th semaphore
+	sops.sem_num = SEM_NUM_INIT;
 	sops.sem_flg = 0; 
     sops.sem_op = -1;
-    sleep(1);
-    printf("Children can go!\n");
-    sleep(1);
-	semop(semid, &sops, 1); //All individuals can start simultaneously now
-    fflush(stdout);
+    /*printf("Children can go!\n");
+    fflush(stdout);*/
+	semop(semid, &sops, 1);
     sops.sem_op = 0;
-	semop(semid, &sops, 1); //Let's wait for the other processes to increment the semaphore
-
+	semop(semid, &sops, 1); //Let's wait for the other processes to decrement the semaphore
+                            //All individuals can start simultaneously now 
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
