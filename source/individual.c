@@ -17,16 +17,29 @@ void a_behaviour();
 void b_behaviour();
 //Send a message with the given type, message and individual data
 void send_message(pid_t to, char msg, ind_data * content);
+//Signal handler
+void handle_sigusr(int signal);
+//-1 on semaphore + block signals
+void access_resource();
+//+1 on semaphore + unblock signals
+void release_resource();
 
 int main(int argc, char *argv[]){
 
-    //****************************************************************
-    //SETTING UP PERSONAL INFORMATION
-    //****************************************************************
+    //***Init of signal handlers and mask
+    sa.sa_handler = &handle_sigusr; 
+	sa.sa_flags = 0; 
+	sigemptyset(&my_mask); 
+    sa.sa_mask = my_mask; //do not mask any signal in handler
+    sigaddset(&my_mask, SIGUSR1);
+    sigaction(SIGUSR1, &sa, NULL);
+
     semid = semget(SEMAPHORE_SET_KEY, 2, 0666);//FIXME replace key
     msgid = msgget(MSGQ_KEY, 0666);//FIXME replace key
 	TEST_ERROR;
-    
+    //****************************************************************
+    //SETTING UP PERSONAL INFORMATION
+    //****************************************************************    
     bool wait_to_begin = false;//when the individual starts, it could have to wait before beginning its behaviour. This is passed via arguments
     info.pid = getpid();
     if(argc >= 5)
@@ -200,7 +213,26 @@ void send_message(pid_t to, char msg_text, ind_data * content)
     msgsnd(msgid, &msg, MSGBUF_LEN, 0);
 }
 
+void handle_sigusr(int signal){ 
+    //If here this individual is marked for death, must handle this kind of situation
+    printf("pid %d marked for death!\n", getpid());
+}
+
 //****************************************************************
 //HELPER FUNCTIONS
 //****************************************************************
 
+//These two functions will always use the SEM_NUM_MUTEX semaphore
+void access_resource(){
+    sops.sem_op = -1;
+    semop(semid, &sops, 1);//Accessing resource
+    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals 
+    TEST_ERROR;
+}
+
+void release_resource(){
+    sops.sem_op = 1;
+    semop(semid, &sops, 1);//Releasing resource
+    TEST_ERROR;
+    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals
+}
