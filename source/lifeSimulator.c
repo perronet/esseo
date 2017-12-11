@@ -53,7 +53,7 @@ int main(){
 	//***Init of shared memory
 #if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
     int memid;
-    memid = shmget(IPC_PRIVATE, sizeof(shared_data), 0666 | IPC_CREAT);
+    memid = shmget(SHM_KEY, sizeof(shared_data), 0666 | IPC_CREAT);
     TEST_ERROR;
     shmctl ( memid , IPC_RMID , NULL ) ;
     TEST_ERROR;
@@ -123,11 +123,12 @@ int main(){
 
     forever{
 	    msgbuf msg;
-	    msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
-	    printf("magic happened for %d!\n",msg.info.pid);
-	    msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
-	    printf("magic happened for %d!\n",msg.info.pid);
-	    exit(EXIT_SUCCESS);
+	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response
+		{
+	    	printf("magic happened for %d!\n",msg.info.pid);
+	    	//kill(-1,SIGKILL);
+	    	exit(EXIT_SUCCESS);
+		}
 	}
     
     sleep(2); //just a test to trigger the alarm

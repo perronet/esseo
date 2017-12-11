@@ -15,7 +15,7 @@ void ind_data_cpy(ind_data * dest, ind_data * src){
 shared_data * get_shared_data(){
     shared_data * infoshared;
     int memid;
-    memid = shmget(IPC_PRIVATE, sizeof(*infoshared), 0666 | IPC_CREAT);
+    memid = shmget(SHM_KEY, sizeof(*infoshared), 0666 | IPC_CREAT);
     TEST_ERROR;
     infoshared = shmat(memid, NULL, 0); //attach pointer
     TEST_ERROR;

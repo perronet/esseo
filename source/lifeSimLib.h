@@ -16,7 +16,7 @@
 #define false 0
 #define forever for(;;)
 
-#define TEST_ERROR    if (errno) {fprintf(stderr, \
+#define TEST_ERROR if (errno) {fprintf(stderr, \
 					  "%s:%d: PID=%5d: Error %d (%s)\n", \
 					  __FILE__,			\
 					  __LINE__,			\
@@ -41,6 +41,7 @@
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
 
+#define SHM_KEY 123456789 //TODO replace this with non-hardcoded key
 #define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key
 #define MSGQ_KEY 123456789 //TODO replace this with non-hardcoded key
 
