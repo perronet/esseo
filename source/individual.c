@@ -130,19 +130,23 @@ void a_behaviour(){
         //printf("ind type A %d, **** RECEIVED %c, %lu, %d\n", getpid(), msg.mtext, msg.info.type, msg.info.genome, msg.info.pid);
         if(msg.info.genome % info.genome == 0 ||true|| rand()%2)//TODO replace rand with actual heuristic
         {
+
             printf("Process A %d accepted B %d\n",getpid(), msg.info.pid);
             pid_t partner_pid = msg.info.pid;//Let's save partner's pid
             remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
             
+            MUTEX_V
+
             msgbuf msg_to_refuse;
             while(msgrcv(msgid, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1);{//Let's turn down any other pending request
                 send_message(msg_to_refuse.info.pid, 'N', &info);
             }
 
+            printf("Process A sending back messages, has pid %d\n", getpid());
             send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
             send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid of the partner
+            printf("Process SENT back messages, has pid %d\n", getpid());
 
-            MUTEX_V
 
             exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
         }
@@ -172,6 +176,7 @@ void b_behaviour(){
 
                 msgbuf msg;
                 msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
+                printf("Process B %d RECEIVED message! %c\n",getpid(), msg.mtext);
 
                 MUTEX_P
 
@@ -190,7 +195,10 @@ void b_behaviour(){
             }
             MUTEX_V
         }
-        MUTEX_V
+        else
+        {
+            MUTEX_V
+        }
 
         if(i >= MAX_AGENDA_LEN-1)
             i = -1;//Finding the perfect partner is an hard task. Let's start again
@@ -210,6 +218,7 @@ void send_message(pid_t to, char msg_text, ind_data * content)
 {
     msgbuf msg;
     msg.mtype = to;
+    msg.mtext = msg_text;
     ind_data_cpy(&(msg.info), content);
     msgsnd(msgid, &msg, MSGBUF_LEN, 0);
 }

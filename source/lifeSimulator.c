@@ -129,13 +129,17 @@ int main(){
     state = RUNNING; 
     alarm(birth_death); //Will send sigalarm every birth_death seconds
 
+    int msgcount = 0;
     forever{
 	    msgbuf msg;
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response
 		{
 	    	printf("magic happened for %d!\n",msg.info.pid);
+
+			msgcount ++;
+			if(msgcount > 1)
+	    		exit(EXIT_SUCCESS);
 	    	//kill(-1,SIGKILL);
-	    	exit(EXIT_SUCCESS);
 		}
 	}
     

@@ -77,7 +77,7 @@ typedef struct data{
 
 //Contains all the public data
 typedef struct shared_data{
-    unsigned long wr_id;//Next index where to write
+    //unsigned long wr_id;//Next index where to write
 	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
 } shared_data;
 
