@@ -98,15 +98,15 @@ void a_behaviour(){
 
     MUTEX_P
 
-    ind_data * current_slot = NULL;
-    for(int i = 0; i < MAX_AGENDA_LEN && !current_slot; i++)
+    bool found = false;
+    for(int i = 0; i < MAX_AGENDA_LEN && !found; i++)
     {//Find a nice spot to place information
         ind_data * slot = &(infoshared->agenda[i]); 
         if(!IS_TYPE_A(slot->type))
         {//This slot is free
             printf("publishing data at index %d!\n", i);
             ind_data_cpy(slot, &info);
-            current_slot = slot;
+            found = true;
         }
     }
     
@@ -191,9 +191,15 @@ void b_behaviour(){
 
                     exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
                 }
+                else
+                    printf("Process B %d got REFUSED from %d\n",getpid(), msg.info.pid);
+
                 MUTEX_V
             }
-            MUTEX_V
+            else
+            {
+            	MUTEX_V
+            }
         }
         else
         {

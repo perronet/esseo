@@ -24,7 +24,7 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 20, // initial population value
+    unsigned int init_people = 6, // initial population value
     				sim_time = 40; // total duration of simulation
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
@@ -46,11 +46,11 @@ int main(){
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
 	sigemptyset(&my_mask); 
+	sa.sa_mask = my_mask; //Signals to be masked in handler
     //sigaddset(&my_mask, SIGINT);   
     //sigaddset(&my_mask, SIGTERM);    
     //sigaddset(&my_mask, SIGQUIT);
     //sigprocmask(SIG_BLOCK, &my_mask, NULL); //Set process mask so that this process ignores interrupt signals 
-    sa.sa_mask = my_mask; //Signals to be masked in handler (redundant, same as process mask)
     sigaction(SIGALRM, &sa, NULL);
     
     //Testing signals (the process will ignore them!)
@@ -108,7 +108,12 @@ int main(){
 #if CM_DEBUG_COUPLE //Only two individuals will be created, one for each type. This is a debug mode
 		if(i)
 			nextType = 'B';
-			else        
+		else        
+			nextType = 'A';
+#elif CM_DEBUG_BALANCED //Balance A and B individuals
+		if(i%2)
+			nextType = 'B';
+		else        
 			nextType = 'A';
 #endif
 
@@ -134,10 +139,11 @@ int main(){
 	    msgbuf msg;
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response
 		{
-	    	printf("magic happened for %d!\n",msg.info.pid);
-
 			msgcount ++;
-			if(msgcount > 1)
+	    	printf("%d magic happened for %d!\n",msgcount, msg.info.pid);
+        	printf("The population was A:%d, B:%d\n", pop_a, pop_b);
+
+			if(msgcount >= init_people)
 	    		exit(EXIT_SUCCESS);
 	    	//kill(-1,SIGKILL);
 		}
