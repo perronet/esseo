@@ -46,17 +46,17 @@ int main(){
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
 	sigemptyset(&my_mask); 
-    sigaddset(&my_mask, SIGINT);   
-    sigaddset(&my_mask, SIGTERM);    
-    sigaddset(&my_mask, SIGQUIT);
-    sigprocmask(SIG_BLOCK, &my_mask, NULL); //Set process mask so that this process ignores interrupt signals 
+    //sigaddset(&my_mask, SIGINT);   
+    //sigaddset(&my_mask, SIGTERM);    
+    //sigaddset(&my_mask, SIGQUIT);
+    //sigprocmask(SIG_BLOCK, &my_mask, NULL); //Set process mask so that this process ignores interrupt signals 
     sa.sa_mask = my_mask; //Signals to be masked in handler (redundant, same as process mask)
     sigaction(SIGALRM, &sa, NULL);
     
     //Testing signals (the process will ignore them!)
-    raise(SIGINT);
-    raise(SIGTERM);
-    raise(SIGQUIT);
+    //raise(SIGINT);
+    //raise(SIGTERM);
+    //raise(SIGQUIT);
 
 	//***Init of shared memory
 #if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
