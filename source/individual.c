@@ -1,11 +1,9 @@
 #include "lifeSimLib.h"
 
-#define MUTEX_P sops.sem_num=SEM_NUM_MUTEX;\
-                sops.sem_op = -1; \
+#define MUTEX_P sops.sem_op = -1; \
                 semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
     
-#define MUTEX_V sops.sem_num=SEM_NUM_MUTEX;\
-        sops.sem_op = 1; \
+#define MUTEX_V sops.sem_op = 1; \
         semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
 
 

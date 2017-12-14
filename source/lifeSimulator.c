@@ -24,7 +24,7 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 100, // initial population value
+    unsigned int init_people = 20, // initial population value
     				sim_time = 40; // total duration of simulation
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
@@ -87,7 +87,7 @@ int main(){
 	msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
 	TEST_ERROR;
 #if CM_IPC_AUTOCLEAN//deallocate and re allocate the queue to avoid messages from precedent runs
-    msgctl ( msgid , IPC_RMID , NULL ) ;//Empty the queue if already present
+    msgctl ( msgid , IPC_RMID , NULL ) ;//Remove queue if already present
 	TEST_ERROR;
     msgid = msgget(MSGQ_KEY, 0666 | IPC_CREAT);
 	TEST_ERROR;
@@ -144,12 +144,15 @@ int main(){
         	printf("The population was A:%d, B:%d\n", pop_a, pop_b);
 
 			if(msgcount >= init_people)
+				//Deallocate message queue, shared memory and semaphore 
+				msgctl(msgid, IPC_RMID, NULL);
+				semctl(semid, 0, IPC_RMID); 
+				shmctl(memid, IPC_RMID, NULL); //Mark for deletion
+				shmdt(infoshared); //Detach
+
 	    		exit(EXIT_SUCCESS);
-	    	//kill(-1,SIGKILL);
 		}
 	}
-    
-    //sleep(2); //just a test to trigger the alarm
 
     //****************************************************************
     //CONCLUSION OF SIMULATION / PRINT STATISTICS
@@ -163,13 +166,18 @@ int main(){
     if(errno == ECHILD) {
 		printf("In PID=%6d, no more child processes\n", getpid());
         printf("The population was A:%d, B:%d\n", pop_a, pop_b);
+        //Deallocate message queue, shared memory and semaphore (this will be useful later)
+		msgctl(msgid, IPC_RMID, NULL);
+		semctl(semid, 0, IPC_RMID); 
+		shmctl(memid, IPC_RMID, NULL); //Mark for deletion
+		shmdt(infoshared); //Detach
+
 		exit(EXIT_SUCCESS);
 	}else {
 		TEST_ERROR;
 		exit(EXIT_FAILURE);
 	}
-	
-	semctl(semid, 0, IPC_RMID);    
+	   
 	return 0;
 }
 
