@@ -138,8 +138,12 @@ void a_behaviour(){
             MUTEX_V
 
             msgbuf msg_to_refuse;
-            while(msgrcv(msgid, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1);{//Let's turn down any other pending request
-                send_message(msg_to_refuse.info.pid, 'N', &info);
+            while(errno != ENOMSG)
+            {
+                if(msgrcv(msgid, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1)
+                {//Let's turn down any other pending request
+                    send_message(msg_to_refuse.info.pid, 'N', &info);
+                }
             }
 
             printf("Process A sending back messages, has pid %d\n", getpid());

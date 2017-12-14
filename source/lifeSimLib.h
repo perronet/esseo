@@ -102,3 +102,6 @@ shared_data * get_shared_data();
 
 //Remove an individual from the public agenda. Return true if found, false otherwise
 bool remove_from_agenda(ind_data * agenda, pid_t individual);
+
+//Prints the current occupied positions in the agenda. You should do this only in MUTEX to have continuos print
+void print_agenda(ind_data * agenda);

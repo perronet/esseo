@@ -24,7 +24,7 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 6, // initial population value
+    unsigned int init_people = 100, // initial population value
     				sim_time = 40; // total duration of simulation
     birth_death = 4;//tick interval of random killing and rebirth
     unsigned long genes = 100;//initial max value of genome
