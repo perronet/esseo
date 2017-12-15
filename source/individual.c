@@ -1,11 +1,11 @@
 #include "lifeSimLib.h"
 
 #define MUTEX_P sops.sem_num=SEM_NUM_MUTEX;\
-                sops.sem_op = -1; \
+				sops.sem_op = -1; \
                 semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
     
 #define MUTEX_V sops.sem_num=SEM_NUM_MUTEX;\
-        sops.sem_op = 1; \
+				sops.sem_op = 1; \
         semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
 
 
@@ -148,7 +148,7 @@ void a_behaviour(){
 
             printf("Process A sending back messages, has pid %d\n", getpid());
             send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
-            send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid of the partner
+            send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
             printf("Process SENT back messages, has pid %d\n", getpid());
 
 
@@ -163,16 +163,15 @@ void a_behaviour(){
 
 void b_behaviour(){
     shared_data * infoshared = get_shared_data();
-    for(int i = 0; i < MAX_AGENDA_LEN; i++)
+    for(int i = 0; i < MAX_AGENDA_LEN; i++) //This for can get stuck with errors 22 for some reason
     {//Find a possible partner
-        MUTEX_P
+        MUTEX_P //Error 22 here
 
         if(IS_TYPE_A(infoshared->agenda[i].type))
         {
             if(true)//TODO ADD HEURISTIC OF REQUEST SENDING DECISION
             {
                 printf("Process B %d contacting %d\n",getpid(), infoshared->agenda[i].pid);
-                fflush(stdout);
                 
                 send_message(infoshared->agenda[i].pid,'Y', &info);
 
@@ -187,10 +186,10 @@ void b_behaviour(){
                 if(msg.mtext == 'Y')
                 {//We got lucky
                     printf("Process B %d got lucky with %d\n",getpid(), msg.info.pid);
-                    fflush(stdout);
 
-                    send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid of the partner
-
+                    send_message(getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
+                    									  //Using mtype getpid() instead of getppid() so the father can associate this process with its partner
+                    								      //Only the parent will read this message, this process won't receive messages for now on
                     MUTEX_V
 
                     exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
@@ -207,11 +206,11 @@ void b_behaviour(){
         }
         else
         {
-            MUTEX_V
+            MUTEX_V //Error 22 here
         }
 
         if(i >= MAX_AGENDA_LEN-1)
-            i = -1;//Finding the perfect partner is an hard task. Let's start again
+            i = -1;//Finding the perfect partner is a hard task. Let's start again
     }
 
 
@@ -235,7 +234,7 @@ void send_message(pid_t to, char msg_text, ind_data * content)
 
 void handle_sigusr(int signal){ 
     //If here this individual is marked for death, must handle this kind of situation
-    printf("pid %d marked for death!\n", getpid());
+    printf("pid %d marked for DEATH!\n", getpid());
 }
 
 //****************************************************************

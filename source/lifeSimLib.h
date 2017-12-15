@@ -40,6 +40,7 @@
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
+#define CONFIG_FILE_NAME "config"
 
 #define SHM_KEY 123456789 //TODO replace this with non-hardcoded key
 #define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key
@@ -58,7 +59,7 @@ enum semaphores_set_types{
 #define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
-
+#define CM_TEST_ALRM true//if true can test alarm and end of simulation using sleep
 //****************************************************************
 //LIBRARY FUNCTIONS
 //****************************************************************

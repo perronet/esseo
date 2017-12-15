@@ -1,6 +1,6 @@
 #include "lifeSimLib.h"
 
-unsigned int birth_death, pop_a, pop_b; //global
+unsigned int birth_death, sim_time, pop_a, pop_b, alrmcount = 0; //global
 shared_data * shared_info;
 
 //Machine state of the manager, determining the current state of the simulation
@@ -11,11 +11,15 @@ void handle_sigalarm(int signal);
 //Creates a new type, basing on the given probability of getting a type a. Probability is given from 0 to 1
 char new_individual_type(float a_type_probability);
 //Generates a random genome, distributed from x to genes+x
-unsigned long rnd_genome(int x, unsigned long genes);
+unsigned long rnd_genome(unsigned long x, unsigned long genes);
 //Returns a random uppercase character, assuming they are all contiguos in encoding
 char rnd_char();
+//Returns a string with an extra appended char
+void append_newchar(char * dest, char * src);
 //Creates a new individual by forking and executing the individual process
 void create_individual(char type, char * name, unsigned long genome);
+//Calculates greatest common divisor
+unsigned long gcd(unsigned long a, unsigned long b);
 
 int main(){
 
@@ -24,24 +28,28 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 100, // initial population value
-    				sim_time = 40; // total duration of simulation
-    birth_death = 4;//tick interval of random killing and rebirth
+    unsigned int init_people = 20; // initial population value
+    birth_death = 5;//tick interval of random killing and rebirth
+    sim_time = 6; // total duration of simulation
     unsigned long genes = 100;//initial max value of genome
+
 
 #if CM_DEBUG_COUPLE
     init_people = 2;
 #endif
 
     int status, i, semid, msgid;
+    ind_data partner_1, partner_2;
     pid_t pid;
     char nextType, nextName[MAX_NAME_LEN];
-    
     if(init_people < 2){
         fprintf(stderr,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'");
         init_people = 2;
     }
-
+    if(birth_death > sim_time){
+    	fprintf(stderr,"Warning: birth_death should be a value lower or equal to sim_time. Setting birth_deatg to default value '0'");
+        birth_death = 0;
+    }
 	//***Init of signal handlers and mask
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
@@ -131,25 +139,41 @@ int main(){
     //SIMULATION IS RUNNING
     //**************************************************************** 
 
-    state = RUNNING; 
-    alarm(birth_death); //Will send sigalarm every birth_death seconds
+    state = RUNNING;
+    if(birth_death > 0){ 
+    	alarm(birth_death); //Will send sigalarm every birth_death seconds
+ 	}else{ //No child will be killed
+ 		birth_death = sim_time;
+ 		alarm(sim_time);
+ 	}
 
+    msgbuf msg;
+    int mcd;
     int msgcount = 0;
-    forever{
-	    msgbuf msg;
-	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response
+    while(msgcount < init_people){ //TODO should remove the message count later and use forever
+    //forever{	    
+	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response (will only receive from A processes)
 		{
-			msgcount ++;
-	    	printf("%d magic happened for %d!\n",msgcount, msg.info.pid);
-        	printf("The population was A:%d, B:%d\n", pop_a, pop_b);
+			msgcount++;
+			ind_data_cpy(&partner_1, &(msg.info));
+			msgrcv(msgid, &msg, MSGBUF_LEN, partner_1.pid, 0);//wait for partner data (will only receive from B processes)
+			ind_data_cpy(&partner_2, &(msg.info));
+			msgcount++;
+			waitpid(partner_1.pid, &status, 0); //Kill the two zombies 
+			waitpid(partner_2.pid, &status, 0);
+			printf("%d magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
-			if(msgcount >= init_people)
-	    		exit(EXIT_SUCCESS);
-	    	//kill(-1,SIGKILL);
+			//Produce two new individuals //FIXME it generates errors because we are using msgcount counter to exit, need to use simulation time before exiting
+			mcd = gcd(partner_1.genome, partner_2.genome);
+			nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			append_newchar(nextName, partner_1.name);
+			create_individual(nextType, nextName, rnd_genome(mcd, genes));
+
+			nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			append_newchar(nextName, partner_2.name);
+			create_individual(nextType, nextName, rnd_genome(mcd, genes));
 		}
 	}
-    
-    //sleep(2); //just a test to trigger the alarm
 
     //****************************************************************
     //CONCLUSION OF SIMULATION / PRINT STATISTICS
@@ -157,19 +181,18 @@ int main(){
 
     state = FINISHED;//this could be moved to the handler of the end of simulation
 
-    while ((pid = wait(&status)) != -1) {
+    while ((pid = wait(&status)) != -1) { //TODO should do this wait in the simulation end handler
         printf("Got info of child with PID=%d, status=0x%04X\n", pid, status);
     } //"kill" all zombies!
     if(errno == ECHILD) {
 		printf("In PID=%6d, no more child processes\n", getpid());
-        printf("The population was A:%d, B:%d\n", pop_a, pop_b);
+        printf("The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats
 		exit(EXIT_SUCCESS);
 	}else {
 		TEST_ERROR;
 		exit(EXIT_FAILURE);
 	}
-	
-	semctl(semid, 0, IPC_RMID);    
+
 	return 0;
 }
 
@@ -181,12 +204,35 @@ char new_individual_type(float a_type_probability){
     return rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B'; //random type
 }
 
-unsigned long rnd_genome(int x, unsigned long genes){
+unsigned long rnd_genome(unsigned long x, unsigned long genes){
     return rand()%genes+x; //Random unsigned long from x to genes+x
 }
 
 char rnd_char(){
     return (rand()%26)+ 'A'; //random name 
+}
+
+unsigned long gcd(unsigned long a, unsigned long b){
+    int temp;
+    while (b != 0)
+    {
+        temp = a % b;
+        a = b;
+        b = temp;
+    }
+    return a;
+}
+
+void append_newchar(char * dest, char * src){
+	size_t len = strlen(src);
+	if(len < MAX_NAME_LEN - 1){
+		strcpy(dest, src);
+      	dest[len] = rnd_char();
+       	dest[len+1] = '\0';
+    }else{
+       	strcpy(dest, src);
+       	fprintf(stderr, "MAX NAME LENGTH REACHED\n");
+    }	
 }
 
 void create_individual(char type, char * name, unsigned long genome)
@@ -224,7 +270,16 @@ void create_individual(char type, char * name, unsigned long genome)
 //****************************************************************
 
 void handle_sigalarm(int signal) { 
-    //handle birth_death events (kill a child, create a new child, print stats)
-    alarm(birth_death); //Schedule another alarm
-    printf("ALARM!\n");
+    alrmcount++;							//alrmcount * birth_death is the elapsed time
+    if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, print stats)
+    	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
+    		alarm(birth_death); //Schedule another alarm
+    		printf("ALARM!\n");
+    	}else{
+    		alarm(sim_time - alrmcount * birth_death);
+    		printf("ALARM!\n");
+    	}
+    }else{ //TODO End simulation
+    	printf("SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
+    }
 }
