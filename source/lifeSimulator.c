@@ -29,8 +29,8 @@ int main(){
 
     state = STARTING;
     unsigned int init_people = 20; // initial population value
-    birth_death = 5;//tick interval of random killing and rebirth
-    sim_time = 6; // total duration of simulation
+    birth_death = 1;//tick interval of random killing and rebirth
+    sim_time = 3; // total duration of simulation
     unsigned long genes = 100;//initial max value of genome
 
 
@@ -40,7 +40,6 @@ int main(){
 
     int status, i, semid, msgid;
     ind_data partner_1, partner_2;
-    pid_t pid;
     char nextType, nextName[MAX_NAME_LEN];
     if(init_people < 2){
         fprintf(stderr,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'");
@@ -138,8 +137,11 @@ int main(){
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
+	state = RUNNING;
 
-    state = RUNNING;
+	#if CM_NOALARM 
+      birth_death = 0; 
+    #endif
     if(birth_death > 0){ 
     	alarm(birth_death); //Will send sigalarm every birth_death seconds
  	}else{ //No child will be killed
@@ -150,47 +152,30 @@ int main(){
     msgbuf msg;
     int mcd;
     int msgcount = 0;
-    while(msgcount < init_people){ //TODO should remove the message count later and use forever
-    //forever{	    
+	forever{	    
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response (will only receive from A processes)
 		{
 			msgcount++;
 			ind_data_cpy(&partner_1, &(msg.info));
+			waitpid(partner_1.pid, &status, 0);
 			msgrcv(msgid, &msg, MSGBUF_LEN, partner_1.pid, 0);//wait for partner data (will only receive from B processes)
+			msgcount++; 
 			ind_data_cpy(&partner_2, &(msg.info));
-			msgcount++;
-			waitpid(partner_1.pid, &status, 0); //Kill the two zombies 
 			waitpid(partner_2.pid, &status, 0);
-			printf("%d magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
+			printf("%d ############### magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
 			//Produce two new individuals //FIXME it generates errors because we are using msgcount counter to exit, need to use simulation time before exiting
 			mcd = gcd(partner_1.genome, partner_2.genome);
-			nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			nextType = 'A';
 			append_newchar(nextName, partner_1.name);
 			create_individual(nextType, nextName, rnd_genome(mcd, genes));
 
-			nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+			nextType = 'B';
 			append_newchar(nextName, partner_2.name);
 			create_individual(nextType, nextName, rnd_genome(mcd, genes));
 		}
-	}
-
-    //****************************************************************
-    //CONCLUSION OF SIMULATION / PRINT STATISTICS
-    //****************************************************************
-
-    state = FINISHED;//this could be moved to the handler of the end of simulation
-
-    while ((pid = wait(&status)) != -1) { //TODO should do this wait in the simulation end handler
-        printf("Got info of child with PID=%d, status=0x%04X\n", pid, status);
-    } //"kill" all zombies!
-    if(errno == ECHILD) {
-		printf("In PID=%6d, no more child processes\n", getpid());
-        printf("The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats
-		exit(EXIT_SUCCESS);
-	}else {
-		TEST_ERROR;
-		exit(EXIT_FAILURE);
 	}
 
 	return 0;
@@ -279,7 +264,25 @@ void handle_sigalarm(int signal) {
     		alarm(sim_time - alrmcount * birth_death);
     		printf("ALARM!\n");
     	}
-    }else{ //TODO End simulation
-    	printf("SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
+    }else{ 
+	    //****************************************************************
+	    //CONCLUSION OF SIMULATION / PRINT STATISTICS
+	    //****************************************************************
+	    state = FINISHED;
+	    pid_t pid;
+	    int status;
+	    printf("SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
+
+	    while ((pid = wait(&status)) != -1) { 
+	        printf("Got info of child with PID=%d, status=0x%04X\n", pid, status);
+	    } //"kill" all zombies!
+	    if(errno == ECHILD) {
+			printf("In PID=%6d, no more child processes\n", getpid());
+	        printf("The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats
+			exit(EXIT_SUCCESS);
+		}else {
+			TEST_ERROR;
+			exit(EXIT_FAILURE);
+		}
     }
 }

@@ -59,7 +59,8 @@ enum semaphores_set_types{
 #define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
-#define CM_TEST_ALRM true//if true can test alarm and end of simulation using sleep
+#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
+
 //****************************************************************
 //LIBRARY FUNCTIONS
 //****************************************************************
