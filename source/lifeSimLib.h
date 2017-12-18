@@ -16,27 +16,60 @@
 #define false 0
 #define forever for(;;)
 
-#define TEST_ERROR if (errno) {fprintf(stderr, \
-					  "%s:%d: PID=%5d: Error %d (%s)\n", \
-					  __FILE__,			\
-					  __LINE__,			\
-					  getpid(),			\
-					  errno,			\
-					  strerror(errno));}
+//****************************************************************
+//COMPILE MODES
+//****************************************************************
+
+#define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
+#define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
+#define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
+#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
+
+//****************************************************************
+//LOG TYPES
+//****************************************************************
+//-Use LOG_ENABLED to set the activation of a log
+//-Use ERRLOG_ENABLED to set the activation of an error log
+#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
+#define LT_AGENDA_STATUS LOG_ENABLED(false)
+ 
+#define LT_GENERIC_ERROR ERRLOG_ENABLED(true)
+ 
+//Below are the conditional log system macros
+#define LOG_ENABLED(IS_ENABLED) LOG##IS_ENABLED
+#define ERRLOG_ENABLED(IS_ENABLED) ERRLOG##IS_ENABLED
+ 
+#define LOGfalse(...)//do nothing
+#define LOGtrue(...) printf (__VA_ARGS__);//actually print
+#define ERRLOGfalse(...)//do nothing
+#define ERRLOGtrue(...) fprintf(stderr,__VA_ARGS__);//actually print
+ 
+#define LOG(LOG_TYPE,...) LOG_TYPE(__VA_ARGS__)//Call this function to log! 
+
+//****************************************************************
+//USEFUL MACROS
+//****************************************************************
+
+#define TEST_ERROR if (errno) {LOG(LT_GENERIC_ERROR,\
+          "%s:%d: PID=%5d: Error %d (%s)\n", \
+           __FILE__,      \
+           __LINE__,      \
+           getpid(),      \
+           errno,      \
+           strerror(errno));}
 #define IS_TYPE_A(type) (type == 'A')
 #define IS_TYPE_B(type) (type == 'B')
-#define CHECK_VALID_IND_TYPE(type) if(!IS_TYPE_A(type) && !IS_TYPE_B(type)) \
-					  {fprintf(stderr, \
-					  "%s:%d: PID=%5d: Error:%s '%c'\n", \
-					  __FILE__,			\
-					  __LINE__,			\
-					  getpid(),			\
-					  "Individual type has to be 'A' or 'B', found", \
-					  type);			\
-					  exit(0);			\
-					}
+#define CHECK_VALID_IND_TYPE(type) if(!IS_TYPE_A(type) && !IS_TYPE_B(type)) {LOG(LT_GENERIC_ERROR, \
+            "%s:%d: PID=%5d: Error:%s '%c'\n", \
+            __FILE__,      \
+            __LINE__,      \
+            getpid(),      \
+            "Individual type has to be 'A' or 'B', found", \
+            type);      \
+            exit(0);      \
+          }
 
-//#define MSG_LEN 10 
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
 #define INDIVIDUAL_FILE_NAME "./individual.out"
@@ -53,16 +86,7 @@ enum semaphores_set_types{
 };
 
 //****************************************************************
-//COMPILE MODES
-//****************************************************************
-
-#define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
-#define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
-#define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
-#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
-
-//****************************************************************
-//LIBRARY FUNCTIONS
+//STRUCTURES
 //****************************************************************
 
 typedef char bool;
@@ -92,6 +116,10 @@ typedef struct msgbuf {
 } msgbuf;
 
 #define MSGBUF_LEN (sizeof(msgbuf) - sizeof(long))
+
+//****************************************************************
+//LIBRARY FUNCTIONS
+//****************************************************************
 
 //Converts the given string into an unsigned long
 unsigned long string_to_ulong(char * c);

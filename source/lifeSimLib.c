@@ -37,7 +37,7 @@ bool remove_from_agenda(ind_data * agenda, pid_t individual){
 
 void print_agenda(ind_data * agenda)
 {
-	printf("CURRENT AGENDA ########################\n");
+	LOG(LT_AGENDA_STATUS,"CURRENT AGENDA ########################\n");
 	for(int i = 0; i < MAX_AGENDA_LEN; i++)
 	{
 		if(IS_TYPE_A(agenda[i].type))
@@ -45,5 +45,5 @@ void print_agenda(ind_data * agenda)
 			printf("index %d with data: type: %c name: %s genome: %lu pid: %d \n", i,agenda[i].type, agenda[i].name, agenda[i].genome,agenda[i].pid);
 		}
 	}
-	printf("########################\n");
+	LOG(LT_AGENDA_STATUS,"########################\n");
 }
