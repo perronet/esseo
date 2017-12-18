@@ -21,18 +21,20 @@
 //****************************************************************
 
 #define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
+#define CM_SAY_ALWAYS_YES false //if true, individuals will always contact/accept any other one. 
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
-#define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of precedent runs
+#define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
 #define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
-
+#define CM_SLOW_MO true //if true, some carefully placed sleeps will slow down the execution
 //****************************************************************
 //LOG TYPES
 //****************************************************************
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
 #define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
-#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(false)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
+#define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
  
 #define LT_GENERIC_ERROR ERRLOG_ENABLED(true)
  
@@ -79,6 +81,8 @@
 #define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key
 #define MSGQ_KEY 123456789 //TODO replace this with non-hardcoded key
 
+#define SLOW_MO_SLEEP_TIME 1 //Duration of sleeps in CM_SLOW_MO mode
+
 enum semaphores_set_types{
 	SEM_NUM_MUTEX, //Used to control mutual exclusion
 	SEM_NUM_INIT, //Used to manage the syncronization of the initialization (all individuals have to wait the others before starting)
@@ -104,8 +108,9 @@ typedef struct data{
 
 //Contains all the public data
 typedef struct shared_data{
-    //unsigned long wr_id;//Next index where to write
 	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
+    unsigned int current_pop_a;
+    unsigned int current_pop_b;
 } shared_data;
 
 //Message struct used by individuals to communicate
@@ -123,6 +128,9 @@ typedef struct msgbuf {
 
 //Converts the given string into an unsigned long
 unsigned long string_to_ulong(char * c);
+
+//Calculates greatest common divisor
+unsigned long gcd(unsigned long a, unsigned long b);
 
 //Copies the content of the struct from the given source to the given dest
 void ind_data_cpy(ind_data * dest, ind_data * src);

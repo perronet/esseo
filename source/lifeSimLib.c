@@ -5,6 +5,17 @@ unsigned long string_to_ulong(char * c){
   	return strtoul(c, &ptr, 10);
 }
 
+unsigned long gcd(unsigned long a, unsigned long b){
+    int temp;
+    while (b != 0)
+    {
+        temp = a % b;
+        a = b;
+        b = temp;
+    }
+    return a;
+}
+
 void ind_data_cpy(ind_data * dest, ind_data * src){
 	dest->type = src->type;
 	strcpy(dest->name,src->name);

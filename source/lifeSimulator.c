@@ -18,8 +18,6 @@ char rnd_char();
 void append_newchar(char * dest, char * src);
 //Creates a new individual by forking and executing the individual process
 void create_individual(char type, char * name, unsigned long genome);
-//Calculates greatest common divisor
-unsigned long gcd(unsigned long a, unsigned long b);
 
 int main(){
 
@@ -30,7 +28,7 @@ int main(){
     state = STARTING;
     unsigned int init_people = 20; // initial population value
     birth_death = 1;//tick interval of random killing and rebirth
-    sim_time = 3; // total duration of simulation
+    sim_time = 55; // total duration of simulation
     unsigned long genes = 100;//initial max value of genome
 
 
@@ -197,16 +195,6 @@ char rnd_char(){
     return (rand()%26)+ 'A'; //random name 
 }
 
-unsigned long gcd(unsigned long a, unsigned long b){
-    int temp;
-    while (b != 0)
-    {
-        temp = a % b;
-        a = b;
-        b = temp;
-    }
-    return a;
-}
 
 void append_newchar(char * dest, char * src){
 	size_t len = strlen(src);
@@ -256,7 +244,7 @@ void create_individual(char type, char * name, unsigned long genome)
 
 void handle_sigalarm(int signal) { 
     alrmcount++;							//alrmcount * birth_death is the elapsed time
-    if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, print stats)
+    if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
     		LOG(LT_MANAGER_ACTIONS,"ALARM!\n"); 
