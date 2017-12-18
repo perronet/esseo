@@ -56,18 +56,16 @@ int main(int argc, char *argv[]){
 	    sops.sem_num = SEM_NUM_INIT;
 		sops.sem_flg = 0; 
 	    sops.sem_op = -1;
-        printf("pid %d WAITING!\n", getpid());
+        LOG(LT_INDIVIDUALS_ACTIONS,"pid %d WAITING!\n", getpid()); 
         fflush(stdout);
         semop(semid, &sops, 1);//Decrement sem by one
 		TEST_ERROR;
 	    sops.sem_op = 0;
         semop(semid, &sops, 1);//Waits for semaphore to become 0 then everybody starts simultaneously
 		TEST_ERROR;
-        //printf("pid %d Let's go!\n", getpid());
-        //fflush(stdout);
     }
 
-    printf("Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
+    LOG(LT_INDIVIDUALS_ACTIONS,"Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
 
     //****************************************************************
     //EXECUTE BEHAVIOUR
@@ -104,7 +102,7 @@ void a_behaviour(){
         ind_data * slot = &(infoshared->agenda[i]); 
         if(!IS_TYPE_A(slot->type))
         {//This slot is free
-            printf("publishing data at index %d!\n", i);
+            LOG(LT_INDIVIDUALS_ACTIONS,"publishing data at index %d!\n", i);
             ind_data_cpy(slot, &info);
             found = true;
         }
@@ -125,13 +123,12 @@ void a_behaviour(){
         //****************************************************************
         MUTEX_P
         
-        printf("Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
+        LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
 
-        //printf("ind type A %d, **** RECEIVED %c, %lu, %d\n", getpid(), msg.mtext, msg.info.type, msg.info.genome, msg.info.pid);
         if(msg.info.genome % info.genome == 0 ||true|| rand()%2)//TODO replace rand with actual heuristic
         {
 
-            printf("Process A %d accepted B %d\n",getpid(), msg.info.pid);
+            LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d accepted B %d\n",getpid(), msg.info.pid);
             pid_t partner_pid = msg.info.pid;//Let's save partner's pid
             remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
             
@@ -146,10 +143,10 @@ void a_behaviour(){
                 }
             }
 
-            printf("Process A sending back messages, has pid %d\n", getpid());
+            LOG(LT_INDIVIDUALS_ACTIONS,"Process A sending back messages, has pid %d\n", getpid());
             send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
             send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
-            printf("Process SENT back messages, has pid %d\n", getpid());
+            LOG(LT_INDIVIDUALS_ACTIONS,"Process SENT back messages, has pid %d\n", getpid());
 
 
             exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
@@ -171,7 +168,7 @@ void b_behaviour(){
         {
             if(true)//TODO ADD HEURISTIC OF REQUEST SENDING DECISION
             {
-                printf("Process B %d contacting %d\n",getpid(), infoshared->agenda[i].pid);
+                LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d contacting %d\n",getpid(), infoshared->agenda[i].pid);
                 
                 send_message(infoshared->agenda[i].pid,'Y', &info);
 
@@ -179,13 +176,13 @@ void b_behaviour(){
 
                 msgbuf msg;
                 msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
-                printf("Process B %d RECEIVED message! %c\n",getpid(), msg.mtext);
+                LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d RECEIVED message! %c\n",getpid(), msg.mtext);
 
                 MUTEX_P
 
-                if(msg.mtext == 'Y')
+                if(msg.mtext == 'Y') //TODO mask SIGUSR1 signals here 
                 {//We got lucky
-                    printf("Process B %d got lucky with %d\n",getpid(), msg.info.pid);
+                    LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d got lucky with %d\n",getpid(), msg.info.pid);
 
                     send_message(getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
                     									  //Using mtype getpid() instead of getppid() so the father can associate this process with its partner
@@ -195,7 +192,7 @@ void b_behaviour(){
                     exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
                 }
                 else
-                    printf("Process B %d got REFUSED from %d\n",getpid(), msg.info.pid);
+                    LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d got REFUSED from %d\n",getpid(), msg.info.pid);
 
                 MUTEX_V
             }
@@ -215,7 +212,7 @@ void b_behaviour(){
 
 
     //Test message queue
-    //printf("SENDING***:%c, %lu, %d\n", msg.info.type, msg.info.genome, msg.info.pid); 
+    //LOG(LT_INDIVIDUALS_ACTIONS,"SENDING***:%c, %lu, %d\n", msg.info.type, msg.info.genome, msg.info.pid); 
 }
 
 
@@ -234,7 +231,7 @@ void send_message(pid_t to, char msg_text, ind_data * content)
 
 void handle_sigusr(int signal){ 
     //If here this individual is marked for death, must handle this kind of situation
-    printf("pid %d marked for DEATH!\n", getpid());
+    LOG(LT_INDIVIDUALS_ACTIONS,"pid %d marked for DEATH!\n", getpid());
 }
 
 //****************************************************************

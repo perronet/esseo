@@ -42,11 +42,11 @@ int main(){
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
     if(init_people < 2){
-        fprintf(stderr,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'");
+        LOG(LT_GENERIC_ERROR,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'"); 
         init_people = 2;
     }
     if(birth_death > sim_time){
-    	fprintf(stderr,"Warning: birth_death should be a value lower or equal to sim_time. Setting birth_deatg to default value '0'");
+    	LOG(LT_GENERIC_ERROR,"Warning: birth_death should be a value lower or equal to sim_time. Setting birth_deatg to default value '0'");
         birth_death = 0;
     }
 	//***Init of signal handlers and mask
@@ -162,7 +162,7 @@ int main(){
 			msgcount++; 
 			ind_data_cpy(&partner_2, &(msg.info));
 			waitpid(partner_2.pid, &status, 0);
-			printf("%d ############### magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
+			LOG(LT_MANAGER_ACTIONS,"%d ######## magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
 			//Produce two new individuals //FIXME it generates errors because we are using msgcount counter to exit, need to use simulation time before exiting
 			mcd = gcd(partner_1.genome, partner_2.genome);
@@ -216,7 +216,7 @@ void append_newchar(char * dest, char * src){
        	dest[len+1] = '\0';
     }else{
        	strcpy(dest, src);
-       	fprintf(stderr, "MAX NAME LENGTH REACHED\n");
+       	LOG(LT_GENERIC_ERROR, "MAX NAME LENGTH REACHED\n"); 
     }	
 }
 
@@ -259,10 +259,10 @@ void handle_sigalarm(int signal) {
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, print stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
-    		printf("ALARM!\n");
+    		LOG(LT_MANAGER_ACTIONS,"ALARM!\n"); 
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
-    		printf("ALARM!\n");
+    		LOG(LT_MANAGER_ACTIONS,"ALARM!\n"); 
     	}
     }else{ 
 	    //****************************************************************
@@ -271,14 +271,14 @@ void handle_sigalarm(int signal) {
 	    state = FINISHED;
 	    pid_t pid;
 	    int status;
-	    printf("SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
+	    LOG(LT_MANAGER_ACTIONS,"SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
 
 	    while ((pid = wait(&status)) != -1) { 
-	        printf("Got info of child with PID=%d, status=0x%04X\n", pid, status);
+	        LOG(LT_MANAGER_ACTIONS,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
 	    } //"kill" all zombies!
 	    if(errno == ECHILD) {
-			printf("In PID=%6d, no more child processes\n", getpid());
-	        printf("The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats
+			LOG(LT_MANAGER_ACTIONS,"In PID=%6d, no more child processes\n", getpid());
+	        LOG(LT_MANAGER_ACTIONS,"The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats 
 			exit(EXIT_SUCCESS);
 		}else {
 			TEST_ERROR;
