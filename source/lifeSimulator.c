@@ -148,7 +148,7 @@ int main(){
  	}
 
     msgbuf msg;
-    int mcd;
+    
     int msgcount = 0;
 	forever{	    
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response (will only receive from A processes)
@@ -163,16 +163,16 @@ int main(){
 			LOG(LT_MANAGER_ACTIONS,"%d ######## magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
 			//Produce two new individuals //FIXME it generates errors because we are using msgcount counter to exit, need to use simulation time before exiting
-			mcd = gcd(partner_1.genome, partner_2.genome);
+			int gcdiv = gcd(partner_1.genome, partner_2.genome);
 			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
 			nextType = 'A';
 			append_newchar(nextName, partner_1.name);
-			create_individual(nextType, nextName, rnd_genome(mcd, genes));
+			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 
 			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
 			nextType = 'B';
 			append_newchar(nextName, partner_2.name);
-			create_individual(nextType, nextName, rnd_genome(mcd, genes));
+			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 		}
 	}
 
