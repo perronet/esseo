@@ -32,9 +32,9 @@
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
 #define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
-#define LT_MANAGER_ACTIONS LOG_ENABLED(false)
-#define LT_AGENDA_STATUS LOG_ENABLED(false)
-#define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
+#define LT_AGENDA_STATUS LOG_ENABLED(true)
+#define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(true)
  
 #define LT_GENERIC_ERROR ERRLOG_ENABLED(true)
  
@@ -74,8 +74,20 @@
 
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
+
+//below are the defines for files
 #define INDIVIDUAL_FILE_NAME "./individual.out"
-#define CONFIG_FILE_NAME "config"
+#define CONFIG_FILE_NAME "sim_config"
+
+#define INIT_PEOPLE_CONFIG_NAME "init_people"
+#define INIT_PEOPLE_DEFAULT 20
+#define GENES_CONFIG_NAME "genes"
+#define GENES_DEFAULT 100
+#define BIRTH_DEATH_CONFIG_NAME "birth_death"
+#define BIRTH_DEATH_DEFAULT 1 //seconds
+#define SIM_TIME_CONFIG_NAME "sim_time"
+#define SIM_TIME_DEFAULT 60 //seconds
+#define INPUT_BUF_LEN 100//max length of a config name / value
 
 #define SHM_KEY 123456789 //TODO replace this with non-hardcoded key
 #define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key

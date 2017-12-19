@@ -18,6 +18,8 @@ char rnd_char();
 void append_newchar(char * dest, char * src);
 //Creates a new individual by forking and executing the individual process
 void create_individual(char type, char * name, unsigned long genome);
+//Reads the given parameters from the config file and sets them up
+void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time);
 
 int main(){
 
@@ -26,27 +28,17 @@ int main(){
     //****************************************************************
 
     state = STARTING;
-    unsigned int init_people = 20; // initial population value
-    birth_death = 1;//tick interval of random killing and rebirth
-    sim_time = 55; // total duration of simulation
-    unsigned long genes = 100;//initial max value of genome
+    unsigned int init_people; // initial population value
+    unsigned long genes;//initial max value of genome
+    birth_death;//tick interval of random killing and rebirth
+    sim_time; // total duration of simulation
 
-
-#if CM_DEBUG_COUPLE
-    init_people = 2;
-#endif
+    setup_params(&init_people,&genes,&birth_death,&sim_time);
 
     int status, i, semid, msgid;
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
-    if(init_people < 2){
-        LOG(LT_GENERIC_ERROR,"Warning: init_people should be a value greater than 1. Setting init_people to default value '2'"); 
-        init_people = 2;
-    }
-    if(birth_death > sim_time){
-    	LOG(LT_GENERIC_ERROR,"Warning: birth_death should be a value lower or equal to sim_time. Setting birth_deatg to default value '0'");
-        birth_death = 0;
-    }
+   
 	//***Init of signal handlers and mask
     sa.sa_handler = &handle_sigalarm; 
 	sa.sa_flags = 0; 
@@ -162,7 +154,6 @@ int main(){
 			waitpid(partner_2.pid, &status, 0);
 			LOG(LT_MANAGER_ACTIONS,"%d ######## magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
-			//Produce two new individuals //FIXME it generates errors because we are using msgcount counter to exit, need to use simulation time before exiting
 			int gcdiv = gcd(partner_1.genome, partner_2.genome);
 			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
 			nextType = 'A';
@@ -188,7 +179,7 @@ char new_individual_type(float a_type_probability){
 }
 
 unsigned long rnd_genome(unsigned long x, unsigned long genes){
-    return rand()%genes+x; //Random unsigned long from x to genes+x
+    return rand()%genes +x; //Random unsigned long from x to genes+x
 }
 
 char rnd_char(){
@@ -236,6 +227,111 @@ void create_individual(char type, char * name, unsigned long genome)
         default://Father process
             break;
         }
+}
+
+void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time)
+{
+	FILE *config_file = NULL;
+
+    *init_people = INIT_PEOPLE_DEFAULT; // initial population value
+    *genes = GENES_DEFAULT;//initial max value of genome
+    *birth_death = BIRTH_DEATH_DEFAULT;//tick interval of random killing and rebirth
+    *sim_time = SIM_TIME_DEFAULT; // total duration of simulation
+	
+	// Opening the file to be read
+	if ((config_file = fopen(CONFIG_FILE_NAME, "r")) == NULL) {
+		LOG(LT_GENERIC_ERROR, "Error opening config file \"%s\"., MSG:%s\n", CONFIG_FILE_NAME, strerror(errno));
+	}
+	else
+	{
+		char options_buffer [INPUT_BUF_LEN];
+		char values_buffer [INPUT_BUF_LEN];
+		char * current_buffer = options_buffer;//We will swap betwen the two above buffers via this one
+
+		int buf_ind;//index of buffer
+		char c;//current char
+
+		while ((c = fgetc(config_file)) != EOF) 
+		{
+			if(c != '=' && c != '\n')
+			{//store a token string inside the buffer
+				current_buffer[buf_ind] = c;
+				buf_ind ++;
+			}
+			else
+			{//we have a token
+				current_buffer[buf_ind] = '\0';//Manually set EOS
+				buf_ind = 0;//reset index to restart reading
+
+				if(current_buffer == values_buffer)
+				{//We should have something in the options_buffer and in the values_buffer. Let's look.
+					
+					unsigned long value = string_to_ulong(values_buffer);// let's use the biggest type initially
+
+					if(strcmp(options_buffer,INIT_PEOPLE_CONFIG_NAME) == 0)
+					{
+						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",INIT_PEOPLE_CONFIG_NAME,value);
+						*init_people = value;
+					}
+					else if(strcmp(options_buffer,GENES_CONFIG_NAME)== 0)
+					{
+						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",GENES_CONFIG_NAME,value);
+						*genes = value;
+					}
+					else if(strcmp(options_buffer,BIRTH_DEATH_CONFIG_NAME)== 0)
+					{
+						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",BIRTH_DEATH_CONFIG_NAME,value);
+						*birth_death = value;
+					}
+					else if(strcmp(options_buffer,SIM_TIME_CONFIG_NAME)== 0)
+					{
+						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",SIM_TIME_CONFIG_NAME,value);
+						*sim_time = value;
+					}
+					else
+					{//invalid!
+						LOG(LT_GENERIC_ERROR,"Invalid token '%s'\n",options_buffer);
+					}
+
+					current_buffer = options_buffer;//Let's get ready to read the next value
+				}
+				else
+					current_buffer = values_buffer;//We just finished reading an option name. Now let's read the value
+			}
+
+		}
+	}
+
+#if CM_DEBUG_COUPLE
+    *init_people = 2;
+    LOG(LT_MANAGER_ACTIONS,"Setting init_people to 2 because CM_DEBUG_COUPLE is true\n");
+#endif
+	
+	//Bad values checking
+	if(*init_people < 2){
+        LOG(LT_GENERIC_ERROR,"Warning: init_people should be a value greater than 1. Setting init_people to default value '%d'\n", INIT_PEOPLE_DEFAULT); 
+        *init_people = INIT_PEOPLE_DEFAULT;
+    }
+    if(*sim_time <= 2){
+    	LOG(LT_GENERIC_ERROR,"Warning: sim_time should be a value higher or equal to 2. Setting sim_time to default value '%d'\n", SIM_TIME_DEFAULT);
+        *sim_time = SIM_TIME_DEFAULT;
+    }
+    if(*birth_death >= *sim_time){
+    	LOG(LT_GENERIC_ERROR,"Warning: birth_death should be a value lower or equal to sim_time. Setting birth_death to '1'\n");
+        *birth_death = 1;
+    }
+
+	LOG(LT_MANAGER_ACTIONS,"***************VALUES****************\n");
+	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",INIT_PEOPLE_CONFIG_NAME,*init_people);
+	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",BIRTH_DEATH_CONFIG_NAME,*birth_death);
+	LOG(LT_MANAGER_ACTIONS,"%s : %lu\n",GENES_CONFIG_NAME,*genes);
+	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",SIM_TIME_CONFIG_NAME,*sim_time);
+	LOG(LT_MANAGER_ACTIONS,"*************************************\n");
+
+	if(config_file)
+		fclose(config_file);
+
+	//exit(EXIT_SUCCESS);//use it to test input only
 }
 
 //****************************************************************
