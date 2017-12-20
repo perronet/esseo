@@ -58,3 +58,23 @@ void print_agenda(ind_data * agenda)
 	}
 	LOG(LT_AGENDA_STATUS,"########################\n");
 }
+
+void insert_pid(int * array, int pid){
+	bool found = false;
+    for(int i = 0; i < MAX_AGENDA_PID && !found; i++){
+      	if(array[i] == 0){
+      		array[i] = pid;
+      		found = true;
+      	} 
+    }
+}
+
+bool remove_pid(int * array, int pid){
+	for(int i = 0; i < MAX_AGENDA_PID; i++){
+		if(array[i] == pid){
+			array[i] = 0;
+			return true;
+		}
+	}
+	return false;//nothing found
+}

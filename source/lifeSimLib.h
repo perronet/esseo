@@ -24,17 +24,18 @@
 #define CM_SAY_ALWAYS_YES false //if true, individuals will always contact/accept any other one. 
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
-#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
-#define CM_SLOW_MO true //if true, some carefully placed sleeps will slow down the execution
+#define CM_NOALARM false //if true, lifeSimulator never sends ALARM signals
+#define CM_SLOW_MO false //if true, some carefully placed sleeps will slow down the execution
 //****************************************************************
 //LOG TYPES
 //****************************************************************
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
-#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
-#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
-#define LT_AGENDA_STATUS LOG_ENABLED(true)
-#define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(true)
+#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(false)
+#define LT_AGENDA_STATUS LOG_ENABLED(false)
+#define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
+#define LT_ALARM LOG_ENABLED(true)
  
 #define LT_GENERIC_ERROR ERRLOG_ENABLED(true)
  
@@ -74,6 +75,7 @@
 
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
+#define MAX_AGENDA_PID 1024
 
 //below are the defines for files
 #define INDIVIDUAL_FILE_NAME "./individual.out"
@@ -89,9 +91,9 @@
 #define SIM_TIME_DEFAULT 60 //seconds
 #define INPUT_BUF_LEN 100//max length of a config name / value
 
-#define SHM_KEY 123456789 //TODO replace this with non-hardcoded key
-#define SEMAPHORE_SET_KEY 578412563 //TODO replace this with non-hardcoded key
-#define MSGQ_KEY 123456789 //TODO replace this with non-hardcoded key
+#define SHM_KEY 123456789 //we'll keep them hardcoded, it always worked
+#define SEMAPHORE_SET_KEY 578412563 
+#define MSGQ_KEY 123456789 
 
 #define SLOW_MO_SLEEP_TIME 1 //Duration of sleeps in CM_SLOW_MO mode
 
@@ -123,6 +125,7 @@ typedef struct shared_data{
 	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
     unsigned int current_pop_a;
     unsigned int current_pop_b;
+    int childarray[MAX_AGENDA_PID]; //all set to 0 by default
 } shared_data;
 
 //Message struct used by individuals to communicate
@@ -131,6 +134,12 @@ typedef struct msgbuf {
 	char mtext;    
     ind_data info;
 } msgbuf;
+
+/*typedef struct node{
+    int val;
+    struct node * next;
+}node_t;*/
+
 
 #define MSGBUF_LEN (sizeof(msgbuf) - sizeof(long))
 
@@ -155,3 +164,9 @@ bool remove_from_agenda(ind_data * agenda, pid_t individual);
 
 //Prints the current occupied positions in the agenda. You should do this only in MUTEX to have continuos print
 void print_agenda(ind_data * agenda);
+
+//Insert integer in the first slot that equals 0
+void insert_pid(int * array, int pid);
+
+//Set slot that equals pid to 0
+bool remove_pid(int * array, int pid);

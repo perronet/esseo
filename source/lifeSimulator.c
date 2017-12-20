@@ -1,7 +1,16 @@
 #include "lifeSimLib.h"
 
+#define MUTEX_P sops.sem_num=SEM_NUM_MUTEX;\
+				sops.sem_op = -1; \
+                semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/
+    
+#define MUTEX_V sops.sem_num=SEM_NUM_MUTEX;\
+				sops.sem_op = 1; \
+        		semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/
+
 unsigned int birth_death, sim_time, pop_a, pop_b, alrmcount = 0; //global
-shared_data * shared_info;
+int semid;
+shared_data * infoshared;
 
 //Machine state of the manager, determining the current state of the simulation
 enum current_state {STARTING,RUNNING,FINISHED} state;
@@ -35,7 +44,7 @@ int main(){
 
     setup_params(&init_people,&genes,&birth_death,&sim_time);
 
-    int status, i, semid, msgid;
+    int status, i, k, msgid;
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
    
@@ -63,7 +72,7 @@ int main(){
     shmctl ( memid , IPC_RMID , NULL ) ;
     TEST_ERROR;
 #endif
-    shared_data * infoshared = get_shared_data();
+    infoshared = get_shared_data();
 
 	//***Init of semaphores
     semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
@@ -90,6 +99,10 @@ int main(){
 	TEST_ERROR;
 #endif
     
+	//Initialize array in shared memory (no need for semaphore here)
+	for(k=0; k<MAX_AGENDA_PID; k++){
+		infoshared->childarray[k] = 0;
+	}
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
     //****************************************************************
@@ -124,6 +137,7 @@ int main(){
     sops.sem_op = 0;
 	semop(semid, &sops, 1); //Let's wait for the other processes to decrement the semaphore
                             //All individuals can start simultaneously now 
+	sops.sem_num=SEM_NUM_MUTEX;
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
@@ -202,13 +216,13 @@ void append_newchar(char * dest, char * src){
 void create_individual(char type, char * name, unsigned long genome)
 {
     CHECK_VALID_IND_TYPE(type)
-
+    pid_t child_pid;
     if(type == 'A')
         pop_a++;
     else
         pop_b++;
 
-    switch(fork()){
+    switch(child_pid = fork()){
         case -1://Error occured
             TEST_ERROR;
             exit(EXIT_FAILURE);
@@ -225,6 +239,9 @@ void create_individual(char type, char * name, unsigned long genome)
             exit(EXIT_FAILURE);
             break;
         default://Father process
+        	MUTEX_P
+        	insert_pid(infoshared->childarray, child_pid);
+        	MUTEX_V
             break;
         }
 }
@@ -343,10 +360,14 @@ void handle_sigalarm(int signal) {
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
-    		LOG(LT_MANAGER_ACTIONS,"ALARM!\n"); 
+    		MUTEX_P
+    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+    		MUTEX_V
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
-    		LOG(LT_MANAGER_ACTIONS,"ALARM!\n"); 
+    		MUTEX_P
+    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+    		MUTEX_V 
     	}
     }else{ 
 	    //****************************************************************
@@ -355,14 +376,16 @@ void handle_sigalarm(int signal) {
 	    state = FINISHED;
 	    pid_t pid;
 	    int status;
-	    LOG(LT_MANAGER_ACTIONS,"SIMULATION END!\n"); //send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
-
+	    LOG(LT_ALARM,"SIMULATION END!\n");//send SIGUSR1 to all children, wait all children, deallocate everything, print stats, exit
+	    //TODO SEND SIGNAL TO ALL CHILDREN HERE USING infoshared->childarray
 	    while ((pid = wait(&status)) != -1) { 
-	        LOG(LT_MANAGER_ACTIONS,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
+	        LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
 	    } //"kill" all zombies!
 	    if(errno == ECHILD) {
-			LOG(LT_MANAGER_ACTIONS,"In PID=%6d, no more child processes\n", getpid());
-	        LOG(LT_MANAGER_ACTIONS,"The population was A:%d, B:%d\n", pop_a, pop_b); //TODO Maybe print other stats 
+			LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
+	        MUTEX_P
+    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+    		MUTEX_V 
 			exit(EXIT_SUCCESS);
 		}else {
 			TEST_ERROR;

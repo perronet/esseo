@@ -91,9 +91,6 @@ int main(int argc, char *argv[]){
         b_behaviour();
     else
         CHECK_VALID_IND_TYPE(info.type)//this is a redundant check but I use it to log the error. In my defence, this should never happen.
-    
-    //TODO detach shared memory pointer and message queue, need to mark shared memory for deletion from lifeSimulator
-    exit(EXIT_SUCCESS);
 }
 
 //****************************************************************
@@ -129,8 +126,9 @@ void a_behaviour(){
     msgbuf msg;
     forever
     {
+    	TEST_ERROR
         msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);
-
+        TEST_ERROR
         //****************************************************************
         //THIS INDIVIDUAL HAS BEEN CONTACTED. LET'S LOOK
         //****************************************************************
@@ -143,7 +141,8 @@ void a_behaviour(){
 #else
         if(evaluate_possible_partner(msg.info.genome))
 #endif
-        {
+        {	
+        	remove_pid(infoshared->childarray, getpid());//Let's remove our pid form the parent's child pid array (we'll never be chosen for death from now on)
 #if CM_SLOW_MO
             sleep(SLOW_MO_SLEEP_TIME);
 #endif
@@ -172,8 +171,7 @@ void a_behaviour(){
             send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
             LOG(LT_INDIVIDUALS_ACTIONS,"Process SENT back messages, has pid %d\n", getpid());
 
-
-            exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
+            exit(EXIT_SUCCESS);
         }
         else
         {
@@ -189,13 +187,13 @@ void a_behaviour(){
 void b_behaviour(){
     acceptance_threshold = TYPE_B_ADAPTMENT_STEPS;
 
-    MUTEX_P//This should'n really be necessary here, let's just put them for cleanliness
+    MUTEX_P
     infoshared->current_pop_b ++;
     MUTEX_V
 
-    for(int i = 0; i < MAX_AGENDA_LEN; i++) //This for can get stuck with errors 22 for some reason
+    for(int i = 0; i < MAX_AGENDA_LEN; i++) 
     {//Find a possible partner
-        MUTEX_P //Error 22 here
+        MUTEX_P
 
         if(IS_TYPE_A(infoshared->agenda[i].type))
         {
@@ -225,7 +223,7 @@ void b_behaviour(){
 
                 if(msg.mtext == 'Y') //TODO mask SIGUSR1 signals here 
                 {//We got lucky
-
+                	remove_pid(infoshared->childarray, getpid());//Let's remove our pid form the parent's child pid array (we'll never be chosen for death from now on)
 #if CM_SLOW_MO
                     sleep(SLOW_MO_SLEEP_TIME);
 #endif
@@ -237,8 +235,7 @@ void b_behaviour(){
                     								      //Only the parent will read this message, this process won't receive messages for now on
                     infoshared->current_pop_b --;
                     MUTEX_V
-
-                    exit(EXIT_SUCCESS);//TODO MAYBE this should be removed, manager should take care of killing
+                    exit(EXIT_SUCCESS);
                 }
                 else
                 {
@@ -256,7 +253,7 @@ void b_behaviour(){
         }
         else
         {
-            MUTEX_V //Error 22 here
+            MUTEX_V 
         }
 
         if(i >= MAX_AGENDA_LEN-1)
