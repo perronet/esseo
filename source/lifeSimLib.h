@@ -50,7 +50,7 @@
 #define LOG(LOG_TYPE,...) LOG_TYPE(__VA_ARGS__)//Call this function to log! 
 
 //****************************************************************
-//USEFUL MACROS
+//USEFUL MACROS 
 //****************************************************************
 
 #define TEST_ERROR if (errno) {LOG(LT_GENERIC_ERROR,\
