@@ -265,7 +265,7 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 		char values_buffer [INPUT_BUF_LEN];
 		char * current_buffer = options_buffer;//We will swap betwen the two above buffers via this one
 
-		int buf_ind;//index of buffer
+		int buf_ind = 0;//index of buffer
 		char c;//current char
 
 		while ((c = fgetc(config_file)) != EOF) 
