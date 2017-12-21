@@ -1,3 +1,7 @@
+#ifndef LIFE_SIM_LIB_H//include guard
+#define LIFE_SIM_LIB_H
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -26,23 +30,31 @@
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
 #define CM_NOALARM false //if true, lifeSimulator never sends ALARM signals
 #define CM_SLOW_MO false //if true, some carefully placed sleeps will slow down the execution
+
 //****************************************************************
 //LOG TYPES
 //****************************************************************
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
+
 #define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
 #define LT_MANAGER_ACTIONS LOG_ENABLED(false)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
 #define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
 #define LT_ALARM LOG_ENABLED(true)
+
+#define LT_SHIPPING LOG_ENABLED(true)//All the output of the shipping version
  
 #define LT_GENERIC_ERROR ERRLOG_ENABLED(true)
- 
+
+//****************************************************************
+//LOG SYSTEM IMPLEMENTATION
+//****************************************************************
 //Below are the conditional log system macros
+
 #define LOG_ENABLED(IS_ENABLED) LOG##IS_ENABLED
 #define ERRLOG_ENABLED(IS_ENABLED) ERRLOG##IS_ENABLED
- 
+
 #define LOGfalse(...)//do nothing
 #define LOGtrue(...) printf (__VA_ARGS__);//actually print
 #define ERRLOGfalse(...)//do nothing
@@ -72,6 +84,8 @@
             type);      \
             exit(0);      \
           }
+
+#define LOG_INDIVIDUAL(LOG_TYPE, INDIVIDUAL) LOG(LOG_TYPE, "*        type   : %-21c*\n*        name   : %-21s*\n*        genome : %-21lu*\n*        pid    : %-21d*\n",INDIVIDUAL.type,INDIVIDUAL.name,INDIVIDUAL.genome,INDIVIDUAL.pid);
 
 #define MAX_NAME_LEN 300
 #define MAX_AGENDA_LEN 300
@@ -170,3 +184,5 @@ void insert_pid(int * array, int pid);
 
 //Set slot that equals pid to 0
 bool remove_pid(int * array, int pid);
+
+#endif

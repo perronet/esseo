@@ -1,4 +1,5 @@
 #include "lifeSimLib.h"
+#include "life_sim_stats.h"
 
 #define MUTEX_P sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
@@ -8,9 +9,10 @@
 				sops.sem_op = 1; \
         		semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/
 
-unsigned int birth_death, sim_time, pop_a, pop_b, alrmcount = 0; //global
+unsigned int birth_death, sim_time, alrmcount = 0; //global
 int semid;
 shared_data * infoshared;
+life_sim_stats stats;
 
 //Machine state of the manager, determining the current state of the simulation
 enum current_state {STARTING,RUNNING,FINISHED} state;
@@ -47,6 +49,8 @@ int main(){
     int status, i, k, msgid;
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
+
+    init_stats(&stats);
    
 	//***Init of signal handlers and mask
     sa.sa_handler = &handle_sigalarm; 
@@ -106,10 +110,7 @@ int main(){
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
     //****************************************************************
-
-    pop_a = 0;
-    pop_b = 0;
-    srand(getpid() + time(NULL) + pop_a + pop_b);//FIXME This works but it's weak and ugly, needs replacement
+    srand(getpid() + time(NULL));//FIXME This works but it's weak and ugly, needs replacement
 
     for(i=0;i<init_people;i++){
     	nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
@@ -138,6 +139,7 @@ int main(){
 	semop(semid, &sops, 1); //Let's wait for the other processes to decrement the semaphore
                             //All individuals can start simultaneously now 
 	sops.sem_num=SEM_NUM_MUTEX;
+
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
@@ -178,6 +180,8 @@ int main(){
 			nextType = 'B';
 			append_newchar(nextName, partner_2.name);
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
+
+			stats.total_couples++;
 		}
 	}
 
@@ -217,10 +221,6 @@ void create_individual(char type, char * name, unsigned long genome)
 {
     CHECK_VALID_IND_TYPE(type)
     pid_t child_pid;
-    if(type == 'A')
-        pop_a++;
-    else
-        pop_b++;
 
     switch(child_pid = fork()){
         case -1://Error occured
@@ -241,6 +241,13 @@ void create_individual(char type, char * name, unsigned long genome)
         default://Father process
         	MUTEX_P
         	insert_pid(infoshared->childarray, child_pid);
+
+        	ind_data new_individual;
+        	new_individual.type = type;
+        	strcpy(new_individual.name, name);
+        	new_individual.genome = genome;
+        	new_individual.pid = child_pid;
+        	register_individual_in_stats(&stats, &new_individual);
         	MUTEX_V
             break;
         }
@@ -338,12 +345,12 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
         *birth_death = 1;
     }
 
-	LOG(LT_MANAGER_ACTIONS,"***************VALUES****************\n");
-	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",INIT_PEOPLE_CONFIG_NAME,*init_people);
-	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",BIRTH_DEATH_CONFIG_NAME,*birth_death);
-	LOG(LT_MANAGER_ACTIONS,"%s : %lu\n",GENES_CONFIG_NAME,*genes);
-	LOG(LT_MANAGER_ACTIONS,"%s : %u\n",SIM_TIME_CONFIG_NAME,*sim_time);
-	LOG(LT_MANAGER_ACTIONS,"*************************************\n");
+	LOG(LT_SHIPPING,"********SIMULATION PARAMETERS********\n");
+	LOG(LT_SHIPPING,"%s : %u\n",INIT_PEOPLE_CONFIG_NAME,*init_people);
+	LOG(LT_SHIPPING,"%s : %u\n",BIRTH_DEATH_CONFIG_NAME,*birth_death);
+	LOG(LT_SHIPPING,"%s : %lu\n",GENES_CONFIG_NAME,*genes);
+	LOG(LT_SHIPPING,"%s : %u\n",SIM_TIME_CONFIG_NAME,*sim_time);
+	LOG(LT_SHIPPING,"*************************************\n");
 
 	if(config_file)
 		fclose(config_file);
@@ -360,14 +367,12 @@ void handle_sigalarm(int signal) {
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
-    		//MUTEX_P
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		//MUTEX_V
+    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+    		stats.total_killed++;
+
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
-    		//MUTEX_P
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		//MUTEX_V 
+    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     	}
     }else{ 
 	    //****************************************************************
@@ -384,8 +389,11 @@ void handle_sigalarm(int signal) {
 	    if(errno == ECHILD) {
 			LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
 	        MUTEX_P
-    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     		MUTEX_V 
+
+ 			print_stats(&stats);
+ 			
 			exit(EXIT_SUCCESS);
 		}else {
 			TEST_ERROR;
