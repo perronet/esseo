@@ -360,14 +360,14 @@ void handle_sigalarm(int signal) {
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
-    		MUTEX_P
+    		//MUTEX_P
     		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		MUTEX_V
+    		//MUTEX_V
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
-    		MUTEX_P
+    		//MUTEX_P
     		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, pop_a, pop_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		MUTEX_V 
+    		//MUTEX_V 
     	}
     }else{ 
 	    //****************************************************************
