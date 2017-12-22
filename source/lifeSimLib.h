@@ -38,7 +38,7 @@
 //-Use ERRLOG_ENABLED to set the activation of an error log
 
 #define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
-#define LT_MANAGER_ACTIONS LOG_ENABLED(false)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
 #define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
 #define LT_ALARM LOG_ENABLED(true)

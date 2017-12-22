@@ -19,8 +19,8 @@ enum current_state {STARTING,RUNNING,FINISHED} state;
 
 //Handles birth_death timer signal
 void handle_sigalarm(int signal);
-//Creates a new type, basing on the given probability of getting a type a. Probability is given from 0 to 1
-char new_individual_type(float a_type_probability);
+//Creates a new type, basing on current state of the simulation, trying to balance A and B processes
+char new_individual_type(unsigned int a_pop, unsigned int b_pop);
 //Generates a random genome, distributed from x to genes+x
 unsigned long rnd_genome(unsigned long x, unsigned long genes);
 //Returns a random uppercase character, assuming they are all contiguos in encoding
@@ -113,15 +113,10 @@ int main(){
     srand(getpid() + time(NULL));//FIXME This works but it's weak and ugly, needs replacement
 
     for(i=0;i<init_people;i++){
-    	nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
+    	nextType = new_individual_type(stats.total_population_a,stats.total_population_b);//We use the stats here and not the shared info because processes will sleep until we finish this. We could get inconsistent data.
         nextName[0] = rnd_char();
 
-#if CM_DEBUG_COUPLE //Only two individuals will be created, one for each type. This is a debug mode
-		if(i)
-			nextType = 'B';
-		else        
-			nextType = 'A';
-#elif CM_DEBUG_BALANCED //Balance A and B individuals
+#if CM_DEBUG_BALANCED || CM_DEBUG_COUPLE //Balance A and B individuals
 		if(i%2)
 			nextType = 'B';
 		else        
@@ -171,13 +166,13 @@ int main(){
 			LOG(LT_MANAGER_ACTIONS,"%d ######## magic happened for %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
 			int gcdiv = gcd(partner_1.genome, partner_2.genome);
-			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
-			nextType = 'A';
+			nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
+			//nextType = 'A';
 			append_newchar(nextName, partner_1.name);
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 
-			//nextType = new_individual_type(.5f); //FIXME there shouldn't be a .5 fixed value
-			nextType = 'B';
+			nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
+			//nextType = 'B';
 			append_newchar(nextName, partner_2.name);
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 
@@ -192,8 +187,19 @@ int main(){
 //INDIVIDUALS CREATION FUNCTIONS
 //****************************************************************
 
-char new_individual_type(float a_type_probability){    
-    return rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B'; //random type
+char new_individual_type(unsigned int a_pop, unsigned int b_pop){    
+	float a_type_probability;
+
+	if(b_pop == 0)
+		a_type_probability = 0;
+	else
+		a_type_probability = (float)b_pop / (float)(b_pop + a_pop); // This way we a types have more chances to appear when they are fewer
+
+	char new_type = rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B';
+	
+	LOG(LT_MANAGER_ACTIONS, "Requested ind type. Since a_pop =%u,b_pop=%u,a_type_probability=%f,result was %c\n",a_pop,b_pop,a_type_probability,new_type);
+    
+    return new_type; //random type
 }
 
 unsigned long rnd_genome(unsigned long x, unsigned long genes){
@@ -393,7 +399,7 @@ void handle_sigalarm(int signal) {
     		MUTEX_V 
 
  			print_stats(&stats);
- 			
+
 			exit(EXIT_SUCCESS);
 		}else {
 			TEST_ERROR;
