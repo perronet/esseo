@@ -59,18 +59,22 @@ void print_agenda(ind_data * agenda)
 	LOG(LT_AGENDA_STATUS,"########################\n");
 }
 
-void insert_pid(int * array, int pid){
+void insert_pid(pid_t * array, pid_t pid){
 	bool found = false;
-    for(int i = 0; i < MAX_AGENDA_PID && !found; i++){
+    for(int i = 0; i < MAX_INIT_PEOPLE && !found; i++){
       	if(array[i] == 0){
       		array[i] = pid;
       		found = true;
       	} 
     }
+    if(!found)
+    {
+    	LOG(LT_GENERIC_ERROR,"ERROR: could not find a place for pid %d in the array\n",pid);
+    }
 }
 
-bool remove_pid(int * array, int pid){
-	for(int i = 0; i < MAX_AGENDA_PID; i++){
+bool remove_pid(pid_t * array, pid_t pid){
+	for(int i = 0; i < MAX_INIT_PEOPLE; i++){
 		if(array[i] == pid){
 			array[i] = 0;
 			return true;

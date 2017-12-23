@@ -28,7 +28,7 @@
 #define CM_SAY_ALWAYS_YES false //if true, individuals will always contact/accept any other one. 
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
-#define CM_NOALARM false //if true, lifeSimulator never sends ALARM signals
+#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
 #define CM_SLOW_MO false //if true, some carefully placed sleeps will slow down the execution
 
 //****************************************************************
@@ -37,7 +37,7 @@
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
 
-#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
+#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
 #define LT_MANAGER_ACTIONS LOG_ENABLED(true)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
 #define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
@@ -87,9 +87,8 @@
 
 #define LOG_INDIVIDUAL(LOG_TYPE, INDIVIDUAL) LOG(LOG_TYPE, "*        type   : %-21c*\n*        name   : %-21s*\n*        genome : %-21lu*\n*        pid    : %-21d*\n",INDIVIDUAL.type,INDIVIDUAL.name,INDIVIDUAL.genome,INDIVIDUAL.pid);
 
-#define MAX_NAME_LEN 300
-#define MAX_AGENDA_LEN 300
-#define MAX_AGENDA_PID 1024
+#define MAX_NAME_LEN 500
+#define MAX_AGENDA_LEN MAX_INIT_PEOPLE
 
 //below are the defines for files
 #define INDIVIDUAL_FILE_NAME "./individual.out"
@@ -97,6 +96,7 @@
 
 #define INIT_PEOPLE_CONFIG_NAME "init_people"
 #define INIT_PEOPLE_DEFAULT 20
+#define MAX_INIT_PEOPLE 1000
 #define GENES_CONFIG_NAME "genes"
 #define GENES_DEFAULT 100
 #define BIRTH_DEATH_CONFIG_NAME "birth_death"
@@ -136,10 +136,10 @@ typedef struct data{
 
 //Contains all the public data
 typedef struct shared_data{
-	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here
+	ind_data agenda[MAX_AGENDA_LEN];//The list of A processes will be published here. Invalid Type = empty cell
+    pid_t alive_individuals[MAX_INIT_PEOPLE]; //The list of B processes will appear here. 0 = empty 
     unsigned int current_pop_a;
     unsigned int current_pop_b;
-    int childarray[MAX_AGENDA_PID]; //all set to 0 by default
 } shared_data;
 
 //Message struct used by individuals to communicate
@@ -180,9 +180,9 @@ bool remove_from_agenda(ind_data * agenda, pid_t individual);
 void print_agenda(ind_data * agenda);
 
 //Insert integer in the first slot that equals 0
-void insert_pid(int * array, int pid);
+void insert_pid(pid_t * array, pid_t pid);
 
 //Set slot that equals pid to 0
-bool remove_pid(int * array, int pid);
+bool remove_pid(pid_t * array, pid_t pid);
 
 #endif

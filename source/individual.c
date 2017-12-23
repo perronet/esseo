@@ -3,11 +3,11 @@
 #define TYPE_A_ADAPTMENT_STEPS 5.f //Each time an A individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = accepts anyone) following this steps
 #define TYPE_B_ADAPTMENT_STEPS 5.f //Each time a B individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = contacts anyone) following this steps
 
-#define MUTEX_P sops.sem_num=SEM_NUM_MUTEX;\
+#define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
                 semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
     
-#define MUTEX_V sops.sem_num=SEM_NUM_MUTEX;\
+#define MUTEX_V errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = 1; \
         semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
 
@@ -26,7 +26,7 @@ void b_behaviour();
 void check_and_adapt();
 //Returns true if the partner is a good match for this individual, basing on the acceptance_threshold
 bool evaluate_possible_partner(unsigned long genome);
-//Send a message with the given type, message and individual data
+//Send a message with the given type, message and individual data.
 void send_message(pid_t to, char msg, ind_data * content);
 //Signal handler
 void handle_sigusr(int signal);
@@ -38,6 +38,8 @@ void release_resource();*/
 
 int main(int argc, char *argv[]){
 
+    LOG(LT_INDIVIDUALS_ACTIONS,"Hello! STILL TO DO STUFF: my PID is: %d\n", getpid());
+
     //***Init of signal handlers and mask
     sa.sa_handler = &handle_sigusr; 
 	sa.sa_flags = 0; 
@@ -45,9 +47,11 @@ int main(int argc, char *argv[]){
     sa.sa_mask = my_mask; //do not mask any signal in handler
     sigaddset(&my_mask, SIGUSR1);
     sigaction(SIGUSR1, &sa, NULL);
+    TEST_ERROR;
 
-    semid = semget(SEMAPHORE_SET_KEY, 2, 0666);//FIXME replace key
-    msgid = msgget(MSGQ_KEY, 0666);//FIXME replace key
+    semid = semget(SEMAPHORE_SET_KEY, 2, 0666);
+    TEST_ERROR;
+    msgid = msgget(MSGQ_KEY, 0666);
 	TEST_ERROR;
     //****************************************************************
     //SETTING UP PERSONAL INFORMATION
@@ -141,17 +145,18 @@ void a_behaviour(){
 #else
         if(evaluate_possible_partner(msg.info.genome))
 #endif
-        {	
-        	remove_pid(infoshared->childarray, getpid());//Let's remove our pid form the parent's child pid array (we'll never be chosen for death from now on)
+        {
 #if CM_SLOW_MO
             sleep(SLOW_MO_SLEEP_TIME);
 #endif
             LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d accepted B %d\n",getpid(), msg.info.pid);
             pid_t partner_pid = msg.info.pid;//Let's save partner's pid
             remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
+            remove_pid(infoshared->alive_individuals, getpid());//Let's remove pid to prevent broken love
+            remove_pid(infoshared->alive_individuals, partner_pid);//Let's remove partner pid to prevent broken love
+            
             infoshared->current_pop_a --;//We are going to die soon ='(
 
-            MUTEX_V
 
             msgbuf msg_to_refuse;
             while(errno != ENOMSG)
@@ -162,14 +167,16 @@ void a_behaviour(){
                 }
             }
 
-            LOG(LT_INDIVIDUALS_ACTIONS,"Process A sending back messages, has pid %d\n", getpid());
+            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A sending back messages\n", getpid());
+            
+            MUTEX_V
 
 #if CM_SLOW_MO
             sleep(SLOW_MO_SLEEP_TIME);
 #endif
             send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
             send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
-            LOG(LT_INDIVIDUALS_ACTIONS,"Process SENT back messages, has pid %d\n", getpid());
+            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A SENT back messages\n", getpid());
 
             exit(EXIT_SUCCESS);
         }
@@ -223,7 +230,6 @@ void b_behaviour(){
 
                 if(msg.mtext == 'Y') //TODO mask SIGUSR1 signals here 
                 {//We got lucky
-                	remove_pid(infoshared->childarray, getpid());//Let's remove our pid form the parent's child pid array (we'll never be chosen for death from now on)
 #if CM_SLOW_MO
                     sleep(SLOW_MO_SLEEP_TIME);
 #endif
@@ -233,6 +239,7 @@ void b_behaviour(){
                     send_message(getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
                     									  //Using mtype getpid() instead of getppid() so the father can associate this process with its partner
                     								      //Only the parent will read this message, this process won't receive messages for now on
+                    
                     infoshared->current_pop_b --;
                     MUTEX_V
                     exit(EXIT_SUCCESS);
@@ -246,9 +253,9 @@ void b_behaviour(){
             }
             else
             {//we don't like this partner
+                MUTEX_V
                 refused_individuals_count ++;
                 check_and_adapt();
-            	MUTEX_V
             }
         }
         else
@@ -303,7 +310,11 @@ void send_message(pid_t to, char msg_text, ind_data * content)
     msg.mtype = to;
     msg.mtext = msg_text;
     ind_data_cpy(&(msg.info), content);
-    msgsnd(msgid, &msg, MSGBUF_LEN, 0);
+
+    while(msgsnd(msgid, &msg, MSGBUF_LEN, 0) == -1)
+    {
+        //TODO give cpu to other processes
+    }
 }
 
 void handle_sigusr(int signal){ 
