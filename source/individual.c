@@ -5,11 +5,11 @@
 
 #define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
-                semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
+                semop(semid, &sops, 1); TEST_ERROR ///*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
     
 #define MUTEX_V errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = 1; \
-        semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
+        semop(semid, &sops, 1); TEST_ERROR ///*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
 
 
 ind_data info;
@@ -41,13 +41,13 @@ int main(int argc, char *argv[]){
     LOG(LT_INDIVIDUALS_ACTIONS,"Hello! STILL TO DO STUFF: my PID is: %d\n", getpid());
 
     //***Init of signal handlers and mask
-    sa.sa_handler = &handle_sigusr; 
-	sa.sa_flags = 0; 
-	sigemptyset(&my_mask); 
-    sa.sa_mask = my_mask; //do not mask any signal in handler
-    sigaddset(&my_mask, SIGUSR1);
-    sigaction(SIGUSR1, &sa, NULL);
-    TEST_ERROR;
+   // sa.sa_handler = &handle_sigusr; 
+	//sa.sa_flags = SA_RESTART; 
+	//sigemptyset(&my_mask); 
+   // sa.sa_mask = my_mask; //do not mask any signal in handler
+   // sigaddset(&my_mask, SIGUSR1);
+   // sigaction(SIGUSR1, &sa, NULL);
+   // TEST_ERROR;
 
     semid = semget(SEMAPHORE_SET_KEY, 2, 0666);
     TEST_ERROR;
@@ -121,7 +121,6 @@ void a_behaviour(){
         }
     }
     
-    infoshared->current_pop_a ++;
     MUTEX_V
 
     //****************************************************************
@@ -193,10 +192,6 @@ void a_behaviour(){
 
 void b_behaviour(){
     acceptance_threshold = TYPE_B_ADAPTMENT_STEPS;
-
-    MUTEX_P
-    infoshared->current_pop_b ++;
-    MUTEX_V
 
     for(int i = 0; i < MAX_AGENDA_LEN; i++) 
     {//Find a possible partner

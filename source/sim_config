@@ -1,5 +1,4 @@
-init_people=5000
+init_people=2000
 genes=999
 sim_time=20
 birth_death=1
- 

@@ -1,16 +1,18 @@
 #include "lifeSimLib.h"
+#include "limits.h"
 #include "life_sim_stats.h"
 
-#define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
+#define MUTEX_P errno = 0; sigprocmask(SIG_BLOCK, &mask, NULL); TEST_ERROR sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
                 semop(semid, &sops, 1); TEST_ERROR /*ACCESSING*/
     
 #define MUTEX_V errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = 1; \
-        		semop(semid, &sops, 1); TEST_ERROR /*RELEASING*/
+        		semop(semid, &sops, 1); TEST_ERROR sigprocmask(SIG_UNBLOCK, &mask, NULL); TEST_ERROR/*RELEASING*/
 
 unsigned int birth_death, sim_time, alrmcount = 0; //global
 int semid, msgid;
+int to_kill_count; //used to know how many processes we should kill when we have the chance
 shared_data * infoshared;
 life_sim_stats stats;
 
@@ -32,6 +34,9 @@ void create_individual(char type, char * name, unsigned long genome);
 //Reads the given parameters from the config file and sets them up
 void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time);
 
+struct sigaction sa;
+sigset_t  my_mask;
+
 int main(){
 
     //****************************************************************
@@ -39,6 +44,7 @@ int main(){
     //****************************************************************
 
     state = STARTING;
+    to_kill_count = 0;
     unsigned int init_people; // initial population value
     unsigned long genes;//initial max value of genome
     birth_death;//tick interval of random killing and rebirth
@@ -129,6 +135,7 @@ int main(){
     //****************************************************************
     //SIMULATION IS RUNNING
     //**************************************************************** 
+
 	state = RUNNING;
 
 	#if CM_NOALARM 
@@ -144,10 +151,11 @@ int main(){
     msgbuf msg;
     sigset_t mask;
     sigemptyset(&mask);
-    sigaddset(&my_mask, SIGALRM); 
+    sigaddset(&mask, SIGALRM); 
 
     int msgcount = 0;
-	forever{	
+	forever{
+		errno = 0;
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1)//wait for response (will only receive from A processes)
 		{
 			sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -178,11 +186,127 @@ int main(){
 			stats.total_couples++;
 
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
-
 		}
-	}
 
-	return 0;
+		MUTEX_P
+
+		if(state == RUNNING)
+		{
+			//****************************************************************
+		    //BIRTH_DEATH KILL ROUTINE
+		    //****************************************************************
+		    
+			while(to_kill_count > 0)
+			{//It's killing time
+
+		    	int oldestIndex = -1;
+		    	for(int i = 0; i < MAX_INIT_PEOPLE; i++)
+		    	{
+		    		pid_t current = infoshared->alive_individuals[i];
+		    		if(oldestIndex < 0 || (current > 0 && current < infoshared->alive_individuals[oldestIndex]))
+		    		{
+		    			oldestIndex = i;
+		    		}
+		    	}
+
+		    	if(oldestIndex >= 0)
+		    	{//found a good target
+		    		pid_t target = infoshared->alive_individuals[oldestIndex]; //save pid
+		    		infoshared->alive_individuals[oldestIndex] = 0;//remove from alive array
+			       	LOG(LT_ALARM,"KILLING PID=%d", target);
+
+					if(remove_from_agenda(infoshared->agenda,target))
+					{//was A type
+						infoshared->current_pop_a --;
+			       		LOG(LT_ALARM," WHICH IS A TYPE\n");
+					}
+					else
+					{
+						infoshared->current_pop_b --;
+			       		LOG(LT_ALARM," WHICH IS B TYPE\n");
+					}
+
+					if(kill(target, SIGKILL) != -1)
+						waitpid(target, &status, 0);
+    				
+					//Let's create a new individual
+
+    				char nextType, nextName[MAX_NAME_LEN];
+
+					nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
+			        nextName[0] = rnd_char();
+       				create_individual(nextType,nextName,rnd_genome(2, genes));//Only the father will return from this call
+		    	}
+		    	else
+		    	{
+		    		LOG(LT_GENERIC_ERROR, "Manager could't find an individual to kill. Is the population 0?");
+		    	}
+
+				stats.total_killed++;
+		    	to_kill_count--;
+			}
+		}
+		else if(state == FINISHED) {
+
+			//****************************************************************
+		    //CONCLUSION OF SIMULATION / PRINT STATS
+		    //****************************************************************
+
+		    pid_t pid;
+		    int status;
+
+			unsigned int kills = 0;
+		    for(int i = 0; i < MAX_INIT_PEOPLE; i++)
+		    {// Kill every B
+		    	if(infoshared->alive_individuals[i] != 0)
+		    	{
+		       		LOG(LT_ALARM,"KILLING PID=%d", infoshared->alive_individuals[i]);
+	       			kills++;
+					kill(infoshared->alive_individuals[i], SIGKILL); 
+		    	}
+		    }
+	        
+	        int alive = infoshared->current_pop_a + infoshared->current_pop_b - kills;
+
+		    if(alive > 0)
+		    	LOG(LT_ALARM,"%u individuals still alive\n", alive);
+
+		    msgbuf msg;
+		    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1 && errno!=EINTR)
+	        {//Eliminate any A process pending
+		       	LOG(LT_ALARM,"RECEIVED MSG PID=%d\n", msg.info.pid);
+				kill(msg.info.pid, SIGKILL);
+
+		    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1 && errno!=EINTR)
+	    		{//Eliminate any B process pending
+					kill(msg.info.pid, SIGKILL);
+		    	}
+	        }
+
+			LOG(LT_ALARM,"\n#########################################\nSIMULATION END!\n");
+			LOG(LT_ALARM,"#########################################\n\n");
+		    //TODO DEALLOCATE SHARED STUFF
+
+	       	MUTEX_V
+
+		    while ((pid = wait(&status)) != -1) { 
+		       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
+		    } //"kill" all zombies!
+		    if(errno == ECHILD) {
+				LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
+	    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+
+	 			print_stats(&stats);
+
+				exit(EXIT_SUCCESS);
+			}else {
+				TEST_ERROR;
+				exit(EXIT_FAILURE);
+			}
+		}
+	    
+	    MUTEX_V
+	}
 }
 
 //****************************************************************
@@ -230,12 +354,6 @@ void create_individual(char type, char * name, unsigned long genome)
     CHECK_VALID_IND_TYPE(type)
     pid_t child_pid;
 
-    //Let's block the alarm. Since we are creating a new individuals, data could be inconsistent if we killed someone in the meantime
-	sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&my_mask, SIGALRM); 
-	sigprocmask(SIG_BLOCK, &mask, NULL);
-
     switch(child_pid = fork()){
         case -1://Error occured
             TEST_ERROR;
@@ -244,7 +362,7 @@ void create_individual(char type, char * name, unsigned long genome)
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
 			sigaction(SIGALRM, NULL,NULL); // Remove any handler
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			//sigprocmask(SIG_UNBLOCK, &mask, NULL);
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);
             char wait_before_starting[1];
@@ -264,7 +382,14 @@ void create_individual(char type, char * name, unsigned long genome)
         	register_individual_in_stats(&stats, &new_individual);
     		insert_pid(infoshared->alive_individuals, child_pid);//no need for semaphore, only manager writes here and alarm is blocked
 
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+    		if(IS_TYPE_A(type))
+				infoshared->current_pop_a ++;
+			else
+				infoshared->current_pop_b ++;
+			//LOG(LT_MANAGER_ACTIONS, "Pop a %d pop b %d\n", infoshared->current_pop_a, infoshared->current_pop_b);
+			//LOG(LT_MANAGER_ACTIONS, "Created process with pid %d of type %c\n", child_pid, type);
+
+			//sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
             break;
         }
@@ -388,75 +513,17 @@ void handle_signal(int signal) {
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		stats.total_killed++;
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     	}
+    	
+    	to_kill_count++;
+    	LOG(LT_SHIPPING,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     } 
     else{ 
     	LOG(LT_ALARM,"\n#########################################\nSIMULATION ENDING...\n");
 		LOG(LT_ALARM,"#########################################\n\n");
 
-	    //****************************************************************
-	    //CONCLUSION OF SIMULATION / PRINT STATISTICS
-	    //****************************************************************
 	    state = FINISHED;
-
-
-	    pid_t pid;
-	    int status;
-
-	    MUTEX_P
-	
-		unsigned int kills = 0;
-	    for(int i = 0; i < MAX_INIT_PEOPLE; i++)
-	    {// Kill every B
-	    	if(infoshared->alive_individuals[i] != 0)
-	    	{
-	       		LOG(LT_ALARM,"KILLING PID=%d", infoshared->alive_individuals[i]);
-       			kills++;
-				kill(infoshared->alive_individuals[i], SIGKILL); 
-	    	}
-	    }
-        
-        int alive = infoshared->current_pop_a + infoshared->current_pop_b - kills;
-
-	    if(alive > 0)
-	    	LOG(LT_ALARM,"%u individuals still alive\n", alive);
-
-	    msgbuf msg;
-	    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1 && errno!=EINTR)
-        {//Eliminate any A process pending
-	       	LOG(LT_ALARM,"RECEIVED MSG PID=%d\n", msg.info.pid);
-			kill(msg.info.pid, SIGKILL);
-
-	    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1 && errno!=EINTR)
-    		{//Eliminate any B process pending
-				kill(msg.info.pid, SIGKILL);
-	    	}
-        }
-
-		LOG(LT_ALARM,"\n#########################################\nSIMULATION END!\n");
-		LOG(LT_ALARM,"#########################################\n\n");
-	    //TODO DEALLOCATE SHARED STUFF
-
-       	MUTEX_V
-
-	    while ((pid = wait(&status)) != -1) { 
-	       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
-	    } //"kill" all zombies!
-	    if(errno == ECHILD) {
-			LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
-    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-
- 			print_stats(&stats);
-
-			exit(EXIT_SUCCESS);
-		}else {
-			TEST_ERROR;
-			exit(EXIT_FAILURE);
-		}
-    }
+	}
 }
