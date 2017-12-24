@@ -28,7 +28,7 @@
 #define CM_SAY_ALWAYS_YES false //if true, individuals will always contact/accept any other one. 
 #define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
-#define CM_NOALARM true //if true, lifeSimulator never sends ALARM signals
+#define CM_NOALARM false //if true, lifeSimulator never sends ALARM signals
 #define CM_SLOW_MO false //if true, some carefully placed sleeps will slow down the execution
 
 //****************************************************************
@@ -37,7 +37,7 @@
 //-Use LOG_ENABLED to set the activation of a log
 //-Use ERRLOG_ENABLED to set the activation of an error log
 
-#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(true)
+#define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
 #define LT_MANAGER_ACTIONS LOG_ENABLED(true)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
 #define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)

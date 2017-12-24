@@ -19,7 +19,7 @@ life_sim_stats stats;
 enum current_state {STARTING,RUNNING,FINISHED} state;
 
 //Handles birth_death timer signal
-void handle_sigalarm(int signal);
+void handle_signal(int signal);
 //Creates a new type, basing on current state of the simulation, trying to balance A and B processes
 char new_individual_type(unsigned int a_pop, unsigned int b_pop);
 //Generates a random genome, distributed from x to genes+x
@@ -54,8 +54,8 @@ int main(){
     init_stats(&stats);
    
 	//***Init of signal handlers and mask
-    sa.sa_handler = &handle_sigalarm; 
-	sa.sa_flags = 0; 
+    sa.sa_handler = &handle_signal; 
+	sa.sa_flags = SA_RESTART; 
 	sigemptyset(&my_mask); 
 	sa.sa_mask = my_mask; //Signals to be masked in handler
     //sigaddset(&my_mask, SIGINT);   
@@ -152,21 +152,26 @@ int main(){
  	}
 
     msgbuf msg;
-    
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&my_mask, SIGALRM); 
+
     int msgcount = 0;
-	forever{	    
-	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1 && errno!=EINTR)//wait for response (will only receive from A processes)
+	forever{	
+	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1)//wait for response (will only receive from A processes)
 		{
+			sigprocmask(SIG_BLOCK, &mask, NULL);
+
 			msgcount++;
 			ind_data_cpy(&partner_1, &(msg.info));
-			LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER WAITING FIRST PID of %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
+			//LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER WAITING FIRST PID of %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 			waitpid(partner_1.pid, &status, 0);
 			msgrcv(msgid, &msg, MSGBUF_LEN, partner_1.pid, 0);//wait for partner data (will only receive from B processes)
 			msgcount++; 
 			ind_data_cpy(&partner_2, &(msg.info));
-			LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER WAITING SECOND PID of %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
+			//LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER WAITING SECOND PID of %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 			waitpid(partner_2.pid, &status, 0);
-			LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER created COUPLE %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
+			//LOG(LT_MANAGER_ACTIONS,"%d ######## MANAGER created COUPLE %d and %d!\n",msgcount, partner_1.pid, partner_2.pid);
 
 			int gcdiv = gcd(partner_1.genome, partner_2.genome);
 			nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
@@ -181,6 +186,9 @@ int main(){
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 
 			stats.total_couples++;
+
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+
 		}
 	}
 
@@ -245,6 +253,7 @@ void create_individual(char type, char * name, unsigned long genome)
             break; 
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
+			sigaction(SIGALRM, NULL,NULL); // Remove any handler
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);
@@ -384,19 +393,19 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 //SIGNAL & MESSAGE HANDLING
 //****************************************************************
 
-void handle_sigalarm(int signal) {
+void handle_signal(int signal) {
     alrmcount++;							//alrmcount * birth_death is the elapsed time
     if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
     	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
     		alarm(birth_death); //Schedule another alarm
     		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     		stats.total_killed++;
-
     	}else{
     		alarm(sim_time - alrmcount * birth_death);
     		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
     	}
-    }else{ 
+    } 
+    else{ 
     	LOG(LT_ALARM,"\n#########################################\nSIMULATION ENDING...\n");
 		LOG(LT_ALARM,"#########################################\n\n");
 
