@@ -1,6 +1,6 @@
 #include "lifeSimLib.h"
 #include "life_sim_stats.h"
-#include "signal.h"
+#include "signal.h" //why tho?
 
 #define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
@@ -58,21 +58,15 @@ int main(){
 	sa.sa_flags = SA_RESTART; 
 	sigemptyset(&my_mask); 
 	sa.sa_mask = my_mask; //Signals to be masked in handler
-    //sigaddset(&my_mask, SIGINT);   
-    //sigaddset(&my_mask, SIGTERM);    
-    //sigaddset(&my_mask, SIGQUIT);
-    //sigprocmask(SIG_BLOCK, &my_mask, NULL); //Set process mask so that this process ignores interrupt signals 
-    sigaction(SIGALRM, &sa, NULL);
-    
-    //Testing signals (the process will ignore them!)
-    //raise(SIGINT);
-    //raise(SIGTERM);
-    //raise(SIGQUIT);
+	sigaddset(&my_mask, SIGALRM); //This mask will mask SIGALRM and SIGINT signals when activated
+	sigaddset(&my_mask, SIGINT);
+    sigaction(SIGALRM, &sa, NULL); 
+    sigaction(SIGINT, &sa, NULL);
 
 	//***Init of shared memory
 #if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
     int memid;
-    memid = shmget(SHM_KEY, 1, 0666 | IPC_CREAT);
+    memid = shmget(SHM_KEY, 1, 0666);
     TEST_ERROR;
     shmctl ( memid , IPC_RMID , NULL ) ;
     TEST_ERROR;
@@ -150,17 +144,13 @@ int main(){
  		birth_death = sim_time;
  		alarm(sim_time);
  	}
-
-    msgbuf msg;
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&my_mask, SIGALRM); 
+    msgbuf msg; 
 
     int msgcount = 0;
 	forever{	
 	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1)//wait for response (will only receive from A processes)
 		{
-			sigprocmask(SIG_BLOCK, &mask, NULL);
+			sigprocmask(SIG_BLOCK, &my_mask, NULL);
 
 			msgcount++;
 			ind_data_cpy(&partner_1, &(msg.info));
@@ -187,7 +177,7 @@ int main(){
 
 			stats.total_couples++;
 
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			sigprocmask(SIG_UNBLOCK, &my_mask, NULL);
 
 		}
 	}
@@ -241,10 +231,7 @@ void create_individual(char type, char * name, unsigned long genome)
     pid_t child_pid;
 
     //Let's block the alarm. Since we are creating a new individuals, data could be inconsistent if we killed someone in the meantime
-	sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&my_mask, SIGALRM); 
-	sigprocmask(SIG_BLOCK, &mask, NULL);
+	sigprocmask(SIG_BLOCK, &my_mask, NULL);
 
     switch(child_pid = fork()){
         case -1://Error occured
@@ -254,7 +241,8 @@ void create_individual(char type, char * name, unsigned long genome)
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
 			sigaction(SIGALRM, NULL,NULL); // Remove any handler
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			sigaction(SIGINT, NULL,NULL);
+			sigprocmask(SIG_UNBLOCK, &my_mask, NULL);
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);
             char wait_before_starting[1];
@@ -274,7 +262,7 @@ void create_individual(char type, char * name, unsigned long genome)
         	register_individual_in_stats(&stats, &new_individual);
     		insert_pid(infoshared->alive_individuals, child_pid);//no need for semaphore, only manager writes here and alarm is blocked
 
-			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			sigprocmask(SIG_UNBLOCK, &my_mask, NULL);
 
             break;
         }
@@ -393,80 +381,109 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 //SIGNAL & MESSAGE HANDLING
 //****************************************************************
 
-void handle_signal(int signal) {
-    alrmcount++;							//alrmcount * birth_death is the elapsed time
-    if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
-    	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
-    		alarm(birth_death); //Schedule another alarm
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    		stats.total_killed++;
-    	}else{
-    		alarm(sim_time - alrmcount * birth_death);
-    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-    	}
-    } 
-    else{ 
-    	LOG(LT_ALARM,"\n#########################################\nSIMULATION ENDING...\n");
-		LOG(LT_ALARM,"#########################################\n\n");
-
-	    //****************************************************************
-	    //CONCLUSION OF SIMULATION / PRINT STATISTICS
-	    //****************************************************************
-	    state = FINISHED;
-
-
-	    pid_t pid;
-	    int status;
-
-	    MUTEX_P
-	
-		unsigned int kills = 0;
-	    for(int i = 0; i < MAX_INIT_PEOPLE; i++)
-	    {// Kill every B
-	    	if(infoshared->alive_individuals[i] != 0)
-	    	{
-	       		LOG(LT_ALARM,"KILLING PID=%d", infoshared->alive_individuals[i]);
-       			kills++;
-				kill(infoshared->alive_individuals[i], SIGKILL); 
+void handle_signal(int signal) { //Handles SIGALRM and SIGINT (there is no need of semaphores here)
+	if(signal == SIGALRM){
+	    alrmcount++;							//alrmcount * birth_death is the elapsed time
+	    if(sim_time > alrmcount * birth_death){ //handle birth_death events (kill a child, create a new child, PRINT stats)
+	    	if(sim_time >= (alrmcount+1) * birth_death){ //the next alarm could arrive after sim_time is reached
+	    		alarm(birth_death); //Schedule another alarm
+	    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+	    		stats.total_killed++;
+	    	}else{
+	    		alarm(sim_time - alrmcount * birth_death);
+	    		LOG(LT_ALARM,"ALARM #%d Total population A:%d B:%d Actual population A:%d B:%d\n", alrmcount, stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
 	    	}
-	    }
-        
-        int alive = infoshared->current_pop_a + infoshared->current_pop_b - kills;
+	    } 
+	    else{ 
+	    	LOG(LT_ALARM,"\n#########################################\nSIMULATION ENDING...\n");
+			LOG(LT_ALARM,"#########################################\n\n");
 
-	    if(alive > 0)
-	    	LOG(LT_ALARM,"%u individuals still alive\n", alive);
+		    //****************************************************************
+		    //CONCLUSION OF SIMULATION / PRINT STATISTICS
+		    //****************************************************************
+		    state = FINISHED;
+		    pid_t pid;
+		    int status;
+		
+			unsigned int kills = 0;
+		    for(int i = 0; i < MAX_INIT_PEOPLE; i++)
+		    {// Kill every B
+		    	if(infoshared->alive_individuals[i] != 0)
+		    	{
+		       		//LOG(LT_ALARM,"KILLING PID=%d", infoshared->alive_individuals[i]);
+	       			kills++;
+					kill(infoshared->alive_individuals[i], SIGKILL); //TODO use sigusr1 and handle it
+		    	}
+		    }
+	        
+	        int alive = infoshared->current_pop_a + infoshared->current_pop_b - kills;
+	        stats.total_killed += kills;
 
-	    msgbuf msg;
-	    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1 && errno!=EINTR)
-        {//Eliminate any A process pending
-	       	LOG(LT_ALARM,"RECEIVED MSG PID=%d\n", msg.info.pid);
-			kill(msg.info.pid, SIGKILL);
+		    if(alive > 0)
+		    	LOG(LT_ALARM,"%u individuals still alive\n", alive);
 
-	    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1 && errno!=EINTR)
-    		{//Eliminate any B process pending
+		    msgbuf msg;
+		    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1)
+	        {//Eliminate any A process pending
+		       	LOG(LT_ALARM,"RECEIVED MSG PID=%d\n", msg.info.pid);
 				kill(msg.info.pid, SIGKILL);
-	    	}
-        }
 
-		LOG(LT_ALARM,"\n#########################################\nSIMULATION END!\n");
+		    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1)
+	    		{//Eliminate any B process pending
+					kill(msg.info.pid, SIGKILL);
+		    	}
+	        }
+
+			LOG(LT_ALARM,"\n#########################################\nSIMULATION END!\n");
+			LOG(LT_ALARM,"#########################################\n\n");
+
+		    while ((pid = wait(&status)) != -1) { 
+		       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
+		    } //"kill" all zombies!
+		    if(errno == ECHILD) {
+				LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
+	    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+				print_stats(&stats);
+				//Deallocate shared memory, semaphore and message queues
+				int memid;
+	    		memid = shmget(SHM_KEY, 1, 0666);
+	    		shmdt(infoshared);
+	    		shmctl(memid, IPC_RMID, NULL);
+	    		semctl(semid, 0, IPC_RMID);    
+				msgctl(msgid, IPC_RMID, NULL);
+
+				exit(EXIT_SUCCESS);
+			}else {
+				TEST_ERROR;
+				//Deallocate shared memory, semaphore and message queues
+				int memid;
+	    		memid = shmget(SHM_KEY, 1, 0666);
+	    		shmdt(infoshared);
+	    		shmctl(memid, IPC_RMID, NULL);
+	    		semctl(semid, 0, IPC_RMID);    
+				msgctl(msgid, IPC_RMID, NULL);
+
+				exit(EXIT_FAILURE);
+			}
+	    }
+	}
+
+	if(signal == SIGINT){ //Handle SIGINT
+		state = FINISHED;
+		int status;
+		LOG(LT_ALARM,"\n#########################################\nSIMULATION INTERRUPTED!\n"); 
 		LOG(LT_ALARM,"#########################################\n\n");
-	    //TODO DEALLOCATE SHARED STUFF
+		TEST_ERROR;
+		while ((wait(&status)) != -1) { 
+		} //"kill" all zombies!
+		//Deallocate shared memory, semaphore and message queues
+		int memid;
+	  	memid = shmget(SHM_KEY, 1, 0666);
+	    shmdt(infoshared);
+	  	shmctl(memid, IPC_RMID, NULL);
+	    semctl(semid, 0, IPC_RMID);    
+		msgctl(msgid, IPC_RMID, NULL);
 
-       	MUTEX_V
-
-	    while ((pid = wait(&status)) != -1) { 
-	       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
-	    } //"kill" all zombies!
-	    if(errno == ECHILD) {
-			LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
-    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
-
- 			print_stats(&stats);
-
-			exit(EXIT_SUCCESS);
-		}else {
-			TEST_ERROR;
-			exit(EXIT_FAILURE);
-		}
-    }
+		exit(EXIT_FAILURE);
+	}
 }
