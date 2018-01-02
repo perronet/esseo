@@ -1,12 +1,12 @@
 #Wanna know how it works? http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/
 #gcc commands? http://www.network-theory.co.uk/docs/gccintro/gccintro_8.html
-lifeSimulator : projectFiles
-	gcc individual.c -o individual.out lifeSimLib.c & gcc lifeSimulator.c lifeSimLib.c life_sim_stats.c
-projectFiles : lifeSimulator.c individual.c lifeSimLib.h lifeSimLib.c life_sim_stats.c
-run: lifeSimulator
+life_simulator : projectFiles
+	gcc individual.c -o individual.out life_sim_lib.c & gcc life_simulator.c life_sim_lib.c life_sim_stats.c
+projectFiles : life_simulator.c individual.c life_sim_lib.h life_sim_lib.c life_sim_stats.c
+run: life_simulator
 	sleep 1
 	./a.out
-test_session: lifeSimulator
+test_session: life_simulator
 	for number in 1 2 3 4 5 6 7 8 9 10; do \
 	printf "\n\n\n\n\n\n" ; \
 	printf "****************************************\n" ; \

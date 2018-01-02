@@ -1,4 +1,4 @@
-#include "lifeSimLib.h"
+#include "life_sim_lib.h"
 
 unsigned long string_to_ulong(char * c){
    	char *ptr;

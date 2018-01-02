@@ -1,4 +1,4 @@
-#include "lifeSimLib.h"
+#include "life_sim_lib.h"
 #include "limits.h"
 #include "life_sim_stats.h"
 

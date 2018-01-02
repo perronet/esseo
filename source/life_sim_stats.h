@@ -1,4 +1,4 @@
-#include "lifeSimLib.h"
+#include "life_sim_lib.h"
 
 typedef struct {
 	unsigned int total_population_a;
