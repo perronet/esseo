@@ -23,11 +23,11 @@ Once this is done, you can open a terminal under */source* and use the following
 * *make*: compile the project. Once this is done, you can use *./a.out* to run the simulation.
 * *make test_session*: this is a handy command to use when you want to perform multiple tests automatically. This will performs 10 tests one after another. During a simulation, you can even tweak the parameters in *sim_config*. The updated parameters will be used in the next test.
 
-### Installing
+### Testing the project
 
-A step by step series of examples that tell you have to get a development env running
+Inside the file *life_sim_lib.h* you can find some important globals of the projects :
 
-Say what the step will be
+* 
 
 ```
 Give the example

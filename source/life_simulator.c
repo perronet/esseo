@@ -147,7 +147,8 @@ int main(){
     //SIMULATION IS RUNNING
     //**************************************************************** 
 
-    LOG(LT_SHIPPING, "\nSimulation started\n");
+	LOG(LT_SHIPPING,"\n#########################################\nSIMULATION STARTED\n");
+	LOG(LT_SHIPPING,"#########################################\n");
 
 	state = RUNNING;
 
@@ -319,7 +320,16 @@ int main(){
 			LOG(LT_SHIPPING,"\n#########################################\nSIMULATION END!\n");
 			LOG(LT_SHIPPING,"#########################################\n\n");
 
-		    //TODO DEALLOCATE SHARED STUFF
+		    //DEALLOCATE SHARED STUFF
+    		memid = shmget(SHM_KEY, sizeof(shared_data), 0666 | IPC_CREAT);
+    		shmctl (memid,IPC_RMID,NULL);
+			TEST_ERROR;
+			semctl(semid,0,IPC_RMID);    
+			TEST_ERROR;
+		    msgctl(msgid,IPC_RMID,NULL);
+			TEST_ERROR;
+		    msgctl(msgid_prop,IPC_RMID ,NULL);
+			TEST_ERROR;
 
 		    if(errno == ECHILD) {
 				LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
@@ -523,7 +533,7 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
         LOG(LT_GENERIC_ERROR,"Warning: init_people should be a value less than %u. Setting init_people to this value.\n", MAX_INIT_PEOPLE); 
         *init_people = MAX_INIT_PEOPLE;
     }
-    if(*sim_time <= 2){
+    if(*sim_time < 2){
     	LOG(LT_GENERIC_ERROR,"Warning: sim_time should be a value higher or equal to 2. Setting sim_time to default value '%d'\n", SIM_TIME_DEFAULT);
         *sim_time = SIM_TIME_DEFAULT;
     }
@@ -563,8 +573,7 @@ void handle_signal(int signal) {
     	LOG(LT_SHIPPING,"Individuals ever alive A:%d B:%d\n", stats.total_population_a, stats.total_population_b); 
     } 
     else{ 
-    	LOG(LT_SHIPPING,"\n#########################################\nSIMULATION ENDING...\n");
-		LOG(LT_SHIPPING,"#########################################\n\n");
+    	LOG(LT_SHIPPING,"\nSimulation ending...\n");
 
 	    state = FINISHED;
 	}
