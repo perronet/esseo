@@ -38,10 +38,11 @@
 //-Use ERRLOG_ENABLED to set the activation of an error log
 
 #define LT_INDIVIDUALS_ACTIONS LOG_ENABLED(false)
-#define LT_MANAGER_ACTIONS LOG_ENABLED(true)
+#define LT_MANAGER_ACTIONS LOG_ENABLED(false)
 #define LT_AGENDA_STATUS LOG_ENABLED(false)
 #define LT_INDIVIDUALS_ADAPTATION LOG_ENABLED(false)
-#define LT_ALARM LOG_ENABLED(true)
+#define LT_INDIVIDUALS_CREATION LOG_ENABLED(false)
+#define LT_ALARM LOG_ENABLED(false)
 
 #define LT_SHIPPING LOG_ENABLED(true)//All the output of the shipping version
  
@@ -107,7 +108,10 @@
 
 #define SHM_KEY 123456789 //we'll keep them hardcoded, it always worked
 #define SEMAPHORE_SET_KEY 578412563 
-#define MSGQ_KEY 123456789 
+#define MSGQ_KEY_COMMON 123456789 
+#define MSGQ_KEY_PROPOSALS 112345678
+
+#define MAX_QUEUE_SAFE_MSG 10
 
 #define SLOW_MO_SLEEP_TIME 1 //Duration of sleeps in CM_SLOW_MO mode
 
@@ -173,6 +177,9 @@ void print_agenda(ind_data * agenda);
 
 //Insert integer in the first slot that equals 0
 void insert_pid(pid_t * array, pid_t pid);
+
+//Gets the index of the given pid, or -1 if not present
+int get_index_in_array(pid_t * array, pid_t pid);
 
 //Set slot that equals pid to 0
 bool remove_pid(pid_t * array, pid_t pid);

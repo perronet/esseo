@@ -73,6 +73,17 @@ void insert_pid(pid_t * array, pid_t pid){
     }
 }
 
+int get_index_in_array(pid_t * array, pid_t pid)
+{
+	for(int i = 0; i < MAX_INIT_PEOPLE; i++){
+		if(array[i] == pid){
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 bool remove_pid(pid_t * array, pid_t pid){
 	for(int i = 0; i < MAX_INIT_PEOPLE; i++){
 		if(array[i] == pid){
@@ -80,5 +91,8 @@ bool remove_pid(pid_t * array, pid_t pid){
 			return true;
 		}
 	}
+    
+    LOG(LT_GENERIC_ERROR,"ERROR: could not find pid %d in the array in remove_pid\n",pid);
+
 	return false;//nothing found
 }

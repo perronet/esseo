@@ -5,15 +5,15 @@
 
 #define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
-                semop(semid, &sops, 1); TEST_ERROR ///*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
+                semop(semid, &sops, 1); LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d Getting MUTEX\n", getpid()); TEST_ERROR ///*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
     
 #define MUTEX_V errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
-				sops.sem_op = 1; \
+				sops.sem_op = 1; LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d releasing MUTEX\n", getpid()); \
         semop(semid, &sops, 1); TEST_ERROR ///*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
 
 
 ind_data info;
-int semid, msgid;
+int semid, msgid_common, msgid_proposals;
 int acceptance_threshold; // Accepts a partner if gcd / genome >= acceptance_threshold / ADAPTMENT_STEPS
 int refused_individuals_count; //Keep track of the number of refused individuals since last adaptment
 shared_data * infoshared;
@@ -26,8 +26,12 @@ void b_behaviour();
 void check_and_adapt();
 //Returns true if the partner is a good match for this individual, basing on the acceptance_threshold
 bool evaluate_possible_partner(unsigned long genome);
+//Receives any pending message and says no to anyone 
+void say_no_to_anyone();
+//Returns true if there is are too many messages in the queue and it is not safe to add more messages
+bool is_queue_full(int queue);
 //Send a message with the given type, message and individual data.
-void send_message(pid_t to, char msg, ind_data * content);
+void send_message(int msgid, pid_t to, char msg, ind_data * content);
 //Signal handler
 void handle_sigusr(int signal);
 /*
@@ -41,17 +45,24 @@ int main(int argc, char *argv[]){
     LOG(LT_INDIVIDUALS_ACTIONS,"Hello! STILL TO DO STUFF: my PID is: %d\n", getpid());
 
     //***Init of signal handlers and mask
-   // sa.sa_handler = &handle_sigusr; 
-	//sa.sa_flags = SA_RESTART; 
-	//sigemptyset(&my_mask); 
-   // sa.sa_mask = my_mask; //do not mask any signal in handler
-   // sigaddset(&my_mask, SIGUSR1);
-   // sigaction(SIGUSR1, &sa, NULL);
-   // TEST_ERROR;
+
+	struct sigaction sa;
+	sigset_t  my_mask;
+
+    sa.sa_handler = &handle_sigusr; 
+	sa.sa_flags = 0; 
+	sigemptyset(&my_mask); 
+   	sa.sa_mask = my_mask; //do not mask any signal in handler
+   	sigaddset(&my_mask, SIGUSR1);
+   	sigaction(SIGUSR1, &sa, NULL);
+
+   	TEST_ERROR;
 
     semid = semget(SEMAPHORE_SET_KEY, 2, 0666);
     TEST_ERROR;
-    msgid = msgget(MSGQ_KEY, 0666);
+    msgid_common = msgget(MSGQ_KEY_COMMON, 0666);
+	TEST_ERROR;
+    msgid_proposals = msgget(MSGQ_KEY_PROPOSALS, 0666);
 	TEST_ERROR;
     //****************************************************************
     //SETTING UP PERSONAL INFORMATION
@@ -83,6 +94,12 @@ int main(int argc, char *argv[]){
     }
 
     LOG(LT_INDIVIDUALS_ACTIONS,"Hello! my PID is: %d, i'm type %c, my name is %s, my genome is %li\n", getpid(), info.type, info.name, info.genome);
+
+   	sigset_t kill_mask;
+	sigemptyset(&kill_mask);
+	sigaddset(&kill_mask, SIGUSR1);
+    sigprocmask(SIG_UNBLOCK, &kill_mask, NULL);//Unblock SIGUSR1 signals, from now on we could die
+   	TEST_ERROR;
 
     //****************************************************************
     //EXECUTE BEHAVIOUR
@@ -129,8 +146,7 @@ void a_behaviour(){
     msgbuf msg;
     forever
     {
-    	TEST_ERROR
-        msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);
+        msgrcv(msgid_proposals, &msg, MSGBUF_LEN, getpid(), 0);
         TEST_ERROR
         //****************************************************************
         //THIS INDIVIDUAL HAS BEEN CONTACTED. LET'S LOOK
@@ -139,54 +155,60 @@ void a_behaviour(){
         
         LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
 
+        if(get_index_in_array(infoshared->alive_individuals, msg.info.pid) != -1)//This message could be from a dead individual
+        {
 #if CM_SAY_ALWAYS_YES
-        if(true)
+	        if(true)
 #else
-        if(evaluate_possible_partner(msg.info.genome))
+	        if(evaluate_possible_partner(msg.info.genome))
 #endif
-        {
+	        {
 #if CM_SLOW_MO
-            sleep(SLOW_MO_SLEEP_TIME);
+	            sleep(SLOW_MO_SLEEP_TIME);
 #endif
-            LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d accepted B %d\n",getpid(), msg.info.pid);
-            pid_t partner_pid = msg.info.pid;//Let's save partner's pid
-            remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
-            remove_pid(infoshared->alive_individuals, getpid());//Let's remove pid to prevent broken love
-            remove_pid(infoshared->alive_individuals, partner_pid);//Let's remove partner pid to prevent broken love
-            
-            infoshared->current_pop_a --;//We are going to die soon ='(
+	            LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d accepted B %d\n",getpid(), msg.info.pid);
 
+	            pid_t partner_pid = msg.info.pid;//Let's save partner's pid
+	            remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
+	            remove_pid(infoshared->alive_individuals, getpid());//Let's remove pid to prevent broken love
+	            remove_pid(infoshared->alive_individuals, partner_pid);//Let's remove partner pid to prevent broken love
+	            infoshared->current_pop_a --;//We are going to die soon ='(
+	            infoshared->current_pop_b --;//Our partner is going to die soon ='(
 
-            msgbuf msg_to_refuse;
-            while(errno != ENOMSG)
-            {
-                if(msgrcv(msgid, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1)
-                {//Let's turn down any other pending request
-                    send_message(msg_to_refuse.info.pid, 'N', &info);
-                }
-            }
-
-            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A sending back messages\n", getpid());
-            
-            MUTEX_V
+	            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A sending back messages\n", getpid());
+	            
+	            MUTEX_V
 
 #if CM_SLOW_MO
-            sleep(SLOW_MO_SLEEP_TIME);
+	            sleep(SLOW_MO_SLEEP_TIME);
 #endif
-            send_message(partner_pid, 'Y',&info);//Communicating to process B acceptance
-            send_message(getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
-            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A SENT back messages\n", getpid());
+	            say_no_to_anyone();//turn down any other request
 
-            exit(EXIT_SUCCESS);
-        }
-        else
-        {
-            send_message(msg.info.pid, 'N',&info);//Communicating to process B refusal
-            refused_individuals_count ++;
-            check_and_adapt();
-        }
+	            while(is_queue_full(msgid_common))
+	            {
+	            	usleep(1);//this is useful to prevent flooding of the common queue which could cause the manager to hang
+	            }
 
-        MUTEX_V
+	            send_message(msgid_proposals, partner_pid, 'Y',&info);//Communicating to process B acceptance
+	            send_message(msgid_common, getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
+	            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A SENT back messages\n", getpid());
+
+	            exit(EXIT_SUCCESS);
+	        }
+	        else
+	        {
+
+        		MUTEX_V
+
+	            send_message(msgid_proposals,msg.info.pid, 'N',&info);//Communicating to process B refusal
+	            refused_individuals_count ++;
+	            check_and_adapt();
+	        }
+		}
+		else
+		{
+        	MUTEX_V
+		}
     }
 }
 
@@ -197,7 +219,7 @@ void b_behaviour(){
     {//Find a possible partner
         MUTEX_P
 
-        if(IS_TYPE_A(infoshared->agenda[i].type))
+        if(IS_TYPE_A(infoshared->agenda[i].type) && !is_queue_full(-1))
         {
 #if CM_SAY_ALWAYS_YES
             if(true)
@@ -210,12 +232,12 @@ void b_behaviour(){
 #endif
                 LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d contacting %d\n",getpid(), infoshared->agenda[i].pid);
                 
-                send_message(infoshared->agenda[i].pid,'Y', &info);
+                send_message(msgid_proposals, infoshared->agenda[i].pid,'Y', &info);//proposal to A type process
 
                 MUTEX_V
 
                 msgbuf msg;
-                msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
+                msgrcv(msgid_proposals, &msg, MSGBUF_LEN, getpid(), 0);//wait for response
 #if CM_SLOW_MO
                 sleep(SLOW_MO_SLEEP_TIME);
 #endif
@@ -223,7 +245,7 @@ void b_behaviour(){
 
                 MUTEX_P
 
-                if(msg.mtext == 'Y') //TODO mask SIGUSR1 signals here 
+                if(msg.mtext == 'Y')
                 {//We got lucky
 #if CM_SLOW_MO
                     sleep(SLOW_MO_SLEEP_TIME);
@@ -231,12 +253,13 @@ void b_behaviour(){
 
                     LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d got lucky with %d\n",getpid(), msg.info.pid);
 
-                    send_message(getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
+                    MUTEX_V
+
+                    send_message(msgid_common, getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
                     									  //Using mtype getpid() instead of getppid() so the father can associate this process with its partner
                     								      //Only the parent will read this message, this process won't receive messages for now on
                     
-                    infoshared->current_pop_b --;
-                    MUTEX_V
+                    //infoshared->current_pop_b --;
                     exit(EXIT_SUCCESS);
                 }
                 else
@@ -262,10 +285,10 @@ void b_behaviour(){
             i = -1;//Finding the perfect partner is a hard task. Let's start again
     }
 
-
     //Test message queue
     //LOG(LT_INDIVIDUALS_ACTIONS,"SENDING***:%c, %lu, %d\n", msg.info.type, msg.info.genome, msg.info.pid); 
 }
+
 
 bool evaluate_possible_partner(unsigned long genome)
 {
@@ -298,23 +321,73 @@ void check_and_adapt()
 //****************************************************************
 //SIGNAL & MESSAGE HANDLING
 //****************************************************************
+void say_no_to_anyone()
+{
+	msgbuf msg_to_refuse;
+	errno = 0;
+	while(errno != ENOMSG)
+	{
+	    if(msgrcv(msgid_proposals, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1)
+	    {//Let's turn down any other pending request
+			if(get_index_in_array(infoshared->alive_individuals,msg_to_refuse.info.pid))//if process is still alive
+	        	send_message(msgid_proposals,msg_to_refuse.info.pid, 'N', &info);
+	    }
+	}
+}
 
-void send_message(pid_t to, char msg_text, ind_data * content)
+bool is_queue_full(int queue)
+{
+	bool is_full = false;
+
+	if(queue == msgid_common || queue <= 0)
+	{
+		struct msqid_ds buf;
+		msgctl(msgid_common, IPC_STAT, &buf);
+		is_full = buf.msg_qnum > MAX_QUEUE_SAFE_MSG;
+	}
+
+	if(queue == msgid_proposals || queue <= 0)
+	{
+		struct msqid_ds buf;
+		msgctl(msgid_proposals, IPC_STAT, &buf);
+		is_full |= buf.msg_qnum > MAX_QUEUE_SAFE_MSG;
+	}
+
+	return is_full;
+}
+
+void send_message(int msgid, pid_t to, char msg_text, ind_data * content)
 {
     msgbuf msg;
     msg.mtype = to;
     msg.mtext = msg_text;
     ind_data_cpy(&(msg.info), content);
-
-    while(msgsnd(msgid, &msg, MSGBUF_LEN, 0) == -1)
-    {
-        //TODO give cpu to other processes
+    
+    LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d sending message %c\n", getpid(), msg_text);
+    while(msgsnd(msgid, &msg, MSGBUF_LEN, IPC_NOWAIT) == -1)
+    {//msgqueue could be full, let's yield the cpu to other processes
+    	LOG(LT_SHIPPING,"id: %s INDIVIDUAL %d sending message %c with type %lu to %s\n", msgid == msgid_common ? "Common" : "proposal",getpid(), msg_text, msg.mtype, to == getppid()? "Parent":"Another process");
+		//TEST_ERROR;
+		errno = 0;
+    	sleep(1);
     }
 }
 
 void handle_sigusr(int signal){ 
-    //If here this individual is marked for death, must handle this kind of situation
-    LOG(LT_INDIVIDUALS_ACTIONS,"pid %d marked for DEATH!\n", getpid());
+    LOG(LT_SHIPPING,"Terminated individual type %c with pid %d.\n", info.type, getpid());
+
+    if(IS_TYPE_A(info.type))
+	{//was A type
+		remove_from_agenda(infoshared->agenda,getpid());
+		infoshared->current_pop_a --;
+		say_no_to_anyone();
+	}
+	else
+	{
+		infoshared->current_pop_b --;
+	}
+
+    exit(EXIT_SUCCESS);
 }
 
 //****************************************************************
