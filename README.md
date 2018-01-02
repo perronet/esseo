@@ -5,13 +5,23 @@ A metaphore of life.
 
 This project explores the functionalities of the System V library via a simulation of a group of individuals. Since we are experimenting with IPC, signals and task scheduling, each individual is represented by a separate process.
 
-### Prerequisites
+### Quick start
 
-What things you need to install the software and how to install them
+In order to test the project, open the file called *sim_config* under */source* and tweak the parameters of the simulation. 
+The following example contains the parameters you can tweak:
 
 ```
-Give examples
+init_people=20
+genes=500
+sim_time=10
+birth_death=1
 ```
+ 
+Once this is done, you can open a terminal under */source* and use the following commands:
+
+* *make run*: compile the project and run it.
+* *make*: compile the project. Once this is done, you can use *./a.out* to run the simulation.
+* *make test_session*: this is a handy command to use when you want to perform multiple tests automatically. This will performs 10 tests one after another. During a simulation, you can even tweak the parameters in *sim_config*. The updated parameters will be used in the next test.
 
 ### Installing
 

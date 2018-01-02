@@ -26,7 +26,7 @@
 
 #define CM_DEBUG_COUPLE false //if true, only two individuals will be created, one for each type. Useful to debug relationship between individuals
 #define CM_SAY_ALWAYS_YES false //if true, individuals will always contact/accept any other one. 
-#define CM_DEBUG_BALANCED true //if true, individuals A and B will be balanced
+#define CM_DEBUG_BALANCED false //if true, individuals A and B will be balanced
 #define CM_IPC_AUTOCLEAN true//if true, ipc objects are deallocated and reallocated at startup. Useful to debug and avoid getting messages of previous runs
 #define CM_NOALARM false //if true, lifeSimulator never sends ALARM signals
 #define CM_SLOW_MO false //if true, some carefully placed sleeps will slow down the execution
