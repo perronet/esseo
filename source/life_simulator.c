@@ -320,6 +320,8 @@ int main(){
 			LOG(LT_SHIPPING,"\n#########################################\nSIMULATION END!\n");
 			LOG(LT_SHIPPING,"#########################################\n\n");
 
+		    errno = 0;//Since we just got out of a wait until error, let's reset errno
+
 		    //DEALLOCATE SHARED STUFF
     		memid = shmget(SHM_KEY, sizeof(shared_data), 0666 | IPC_CREAT);
     		shmctl (memid,IPC_RMID,NULL);
@@ -331,17 +333,12 @@ int main(){
 		    msgctl(msgid_prop,IPC_RMID ,NULL);
 			TEST_ERROR;
 
-		    if(errno == ECHILD) {
-				LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
-	    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
+			LOG(LT_ALARM,"In PID=%6d, no more child processes\n", getpid());
+    		LOG(LT_ALARM,"Total population A:%d B:%d Actual population A:%d B:%d\n", stats.total_population_a, stats.total_population_b, infoshared->current_pop_a, infoshared->current_pop_b); 
 
-	 			print_stats(&stats);
+ 			print_stats(&stats);
 
-				exit(EXIT_SUCCESS);
-			}else {
-				TEST_ERROR;
-				exit(EXIT_FAILURE);
-			}
+			exit(EXIT_SUCCESS);
 		}
 		
 		LOG(LT_MANAGER_ACTIONS, "MANAGER releasing MUTEX\n");
