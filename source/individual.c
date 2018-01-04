@@ -180,11 +180,6 @@ void a_behaviour(){
 #endif
 	            say_no_to_anyone();//turn down any other request
 
-	            while(is_queue_full(msgid_common))
-	            {
-	            	usleep(1);//this is useful to prevent flooding of the common queue which could cause the manager to hang
-	            }
-
 	            send_message(msgid_proposals, partner_pid, 'Y',&info);//Communicating to process B acceptance
 	            send_message(msgid_common, getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
 	            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A SENT back messages\n", getpid());
@@ -360,7 +355,6 @@ void send_message(int msgid, pid_t to, char msg_text, ind_data * content)
     	LOG(LT_SHIPPING,"id: %s INDIVIDUAL %d sending message %c with type %lu to %s\n", msgid == msgid_common ? "Common" : "proposal",getpid(), msg_text, msg.mtype, to == getppid()? "Parent":"Another process");
 		TEST_ERROR
 		errno = 0;
-    	sleep(1);//FIXME this is shit
     }
 }
 
