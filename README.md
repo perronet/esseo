@@ -63,11 +63,11 @@ The main parts of the projects are:
 
 Given the nature of this project, it heavily relies on IPC.
 
-Type A individuals use **shared memory** to publish their data. The shared array of their ind_data (see the section above under *'individuals'* is called *agenda* throughout the project). Shared memory is also used to keep count of the current population.
+Type A individuals use **shared memory** to publish their data. The shared array of their ind_data (see the section above under *'individuals'* is called *agenda* throughout the project). Shared memory is also used to keep count of the current population and to keep track of every individual's pid, this will be useful later to choose which processes should be killed and to kill every process at simulation end.
 
-**Message queues** are heavily used by individuals: Each time a type B individuals identifies a good match via the *agenda*, it sends a message containing its ind_data. The A type will answer with a 'Y' if it accepts, 'N' otherwise. When a couple is formed, both the individuals will send a message to the manager specifying their data. This will let the manager create descendants.
+**Message queues** are heavily used by individuals: Each time a type B individuals identifies a good match via the *agenda*, it sends a message containing its *ind_data*. The A type will answer with a 'Y' if it accepts, 'N' otherwise. When a couple is formed, both the individuals will send a message to the manager specifying their data. This will let the manager create descendants. During the project we noticed that a single message queue would get quickly flooded and couldn't always handle every message properly, this is why there are two separate message queues: one is used for the communication between individuals (*msgid_proposals*) and the other for the manager (*msgid_common*). 
 
-**Signals** are used by the manager to wake up every *birth_death* seconds and subsequently to kill an individual. When this happens, the SIGUSR1 signal is sent to and handled by the individual, which then removes its shared data and dies.
+**Signals** are used by the manager to take action every *birth_death* seconds and subsequently to kill the individual with the lowest pid (which is basically the oldest individual). When this happens, the manager removes that pid from the *alive_individuals* array in shared memory, then SIGUSR1 signal is sent to and handled by the individual, which then removes its own shared data and exits.
 
 In order to cope with the critical sections created by the shared memory, we used a mutex **semaphore**. Another semaphore is used at the beginning of the simulation, since individuals can start their life only when the simulation is ready to start (all the initial individuals created).
 

@@ -34,11 +34,6 @@ bool is_queue_full(int queue);
 void send_message(int msgid, pid_t to, char msg, ind_data * content);
 //Signal handler
 void handle_sigusr(int signal);
-/*
-//-1 on semaphore + block signals
-void access_resource();
-//+1 on semaphore + unblock signals
-void release_resource();*/
 
 int main(int argc, char *argv[]){
 
@@ -53,8 +48,9 @@ int main(int argc, char *argv[]){
 	sa.sa_flags = 0; 
 	sigemptyset(&my_mask); 
    	sa.sa_mask = my_mask; //do not mask any signal in handler
-   	sigaddset(&my_mask, SIGUSR1);
    	sigaction(SIGUSR1, &sa, NULL);
+	sigaddset(&my_mask, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals
 
    	TEST_ERROR;
 
@@ -98,7 +94,7 @@ int main(int argc, char *argv[]){
    	sigset_t kill_mask;
 	sigemptyset(&kill_mask);
 	sigaddset(&kill_mask, SIGUSR1);
-    sigprocmask(SIG_UNBLOCK, &kill_mask, NULL);//Unblock SIGUSR1 signals, from now on we could die
+    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals, from now on we can die
    	TEST_ERROR;
 
     //****************************************************************
@@ -170,10 +166,10 @@ void a_behaviour(){
 
 	            pid_t partner_pid = msg.info.pid;//Let's save partner's pid
 	            remove_from_agenda(infoshared->agenda, getpid());//Let's remove data from agenda, this individual will not be contacted anymore
-	            remove_pid(infoshared->alive_individuals, getpid());//Let's remove pid to prevent broken love
-	            remove_pid(infoshared->alive_individuals, partner_pid);//Let's remove partner pid to prevent broken love
-	            infoshared->current_pop_a --;//We are going to die soon ='(
-	            infoshared->current_pop_b --;//Our partner is going to die soon ='(
+	            remove_pid(infoshared->alive_individuals, getpid());
+	            remove_pid(infoshared->alive_individuals, partner_pid);
+	            infoshared->current_pop_a --;
+	            infoshared->current_pop_b --;
 
 	            LOG(LT_INDIVIDUALS_ACTIONS,"From %d: Process A sending back messages\n", getpid());
 	            
@@ -258,8 +254,6 @@ void b_behaviour(){
                     send_message(msgid_common, getpid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner
                     									  //Using mtype getpid() instead of getppid() so the father can associate this process with its partner
                     								      //Only the parent will read this message, this process won't receive messages for now on
-                    
-                    //infoshared->current_pop_b --;
                     exit(EXIT_SUCCESS);
                 }
                 else
@@ -284,9 +278,6 @@ void b_behaviour(){
         if(i >= MAX_AGENDA_LEN-1)
             i = -1;//Finding the perfect partner is a hard task. Let's start again
     }
-
-    //Test message queue
-    //LOG(LT_INDIVIDUALS_ACTIONS,"SENDING***:%c, %lu, %d\n", msg.info.type, msg.info.genome, msg.info.pid); 
 }
 
 
@@ -367,9 +358,9 @@ void send_message(int msgid, pid_t to, char msg_text, ind_data * content)
     while(msgsnd(msgid, &msg, MSGBUF_LEN, IPC_NOWAIT) == -1)
     {//msgqueue could be full, let's yield the cpu to other processes
     	LOG(LT_SHIPPING,"id: %s INDIVIDUAL %d sending message %c with type %lu to %s\n", msgid == msgid_common ? "Common" : "proposal",getpid(), msg_text, msg.mtype, to == getppid()? "Parent":"Another process");
-		//TEST_ERROR;
+		TEST_ERROR
 		errno = 0;
-    	sleep(1);
+    	sleep(1);//FIXME this is shit
     }
 }
 
@@ -377,7 +368,7 @@ void handle_sigusr(int signal){
     LOG(LT_SHIPPING,"Terminated individual type %c with pid %d.\n", info.type, getpid());
 
     if(IS_TYPE_A(info.type))
-	{//was A type
+	{
 		remove_from_agenda(infoshared->agenda,getpid());
 		infoshared->current_pop_a --;
 		say_no_to_anyone();
@@ -390,23 +381,3 @@ void handle_sigusr(int signal){
     exit(EXIT_SUCCESS);
 }
 
-//****************************************************************
-//HELPER FUNCTIONS
-//****************************************************************
-
-/*
-//These two functions will always use the SEM_NUM_MUTEX semaphore
-void access_resource(){
-    sops.sem_op = -1;
-    semop(semid, &sops, 1);//Accessing resource
-    TEST_ERROR;
-    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals 
-    TEST_ERROR;
-}
-
-void release_resource(){
-    sops.sem_op = 1;
-    semop(semid, &sops, 1);//Releasing resource
-    TEST_ERROR;
-    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals
-}*/
