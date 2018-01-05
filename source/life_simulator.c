@@ -391,7 +391,6 @@ pid_t create_individual(char type, char * name, unsigned long genome)
             break; 
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
-			sleep(1);
 			sigaction(SIGALRM, NULL,NULL); // Remove any handler
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);

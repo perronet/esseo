@@ -1,4 +1,4 @@
 init_people=2
 genes=2
-sim_time=20
+sim_time=200
 birth_death=2
