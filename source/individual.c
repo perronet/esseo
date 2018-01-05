@@ -5,11 +5,11 @@
 
 #define MUTEX_P errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = -1; \
-                semop(semid, &sops, 1); LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d Getting MUTEX\n", getpid()); TEST_ERROR ///*ACCESSING*/sigprocmask(SIG_BLOCK, &my_mask, NULL);TEST_ERROR//Block SIGUSR1 signals 
+                semop(semid, &sops, 1); LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d Getting MUTEX\n", getpid()); TEST_ERROR ///*ACCESSING*/
     
 #define MUTEX_V errno = 0; sops.sem_num=SEM_NUM_MUTEX;\
 				sops.sem_op = 1; LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d releasing MUTEX\n", getpid()); \
-        semop(semid, &sops, 1); TEST_ERROR ///*RELEASING*/sigprocmask(SIG_UNBLOCK, &my_mask, NULL);TEST_ERROR//Unblock SIGUSR1 signals 
+        semop(semid, &sops, 1); TEST_ERROR ///*RELEASING*/ 
 
 
 ind_data info;
@@ -50,7 +50,6 @@ int main(int argc, char *argv[]){
    	sa.sa_mask = my_mask; //do not mask any signal in handler
    	sigaction(SIGUSR1, &sa, NULL);
 	sigaddset(&my_mask, SIGUSR1);
-    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals
 
    	TEST_ERROR;
 
@@ -81,7 +80,6 @@ int main(int argc, char *argv[]){
 		sops.sem_flg = 0; 
 	    sops.sem_op = -1;
         LOG(LT_INDIVIDUALS_ACTIONS,"pid %d WAITING!\n", getpid()); 
-        fflush(stdout);
         semop(semid, &sops, 1);//Decrement sem by one
 		TEST_ERROR;
 	    sops.sem_op = 0;
@@ -94,7 +92,7 @@ int main(int argc, char *argv[]){
    	sigset_t kill_mask;
 	sigemptyset(&kill_mask);
 	sigaddset(&kill_mask, SIGUSR1);
-    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals, from now on we can die
+    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals (we inherited this block from the father process), from now on we can die
    	TEST_ERROR;
 
     //****************************************************************
@@ -179,6 +177,9 @@ void a_behaviour(){
 	            sleep(SLOW_MO_SLEEP_TIME);
 #endif
 	            say_no_to_anyone();//turn down any other request
+
+	            while(is_queue_full(msgid_common)); //usleep(1) this is useful to prevent flooding of the common queue which could cause the manager to hang 
+                
 
 	            send_message(msgid_proposals, partner_pid, 'Y',&info);//Communicating to process B acceptance
 	            send_message(msgid_common, getppid(), 'Y',&msg.info);//Communicating to parent the pid and data of the partner

@@ -48,27 +48,42 @@ int main(){
 
     setup_params(&init_people,&genes,&birth_death,&sim_time);
 
-    int status, i, k;
+    int status, memid, i, k;
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
     struct sigaction sa; 
-	sigset_t  my_mask; 
+	sigset_t  sigusr_mask; 
 
     init_stats(&stats);
    
 	//***Init of signal handlers and mask
     sa.sa_handler = &handle_signal; 
 	sa.sa_flags = SA_RESTART; 
-	sigemptyset(&my_mask); 
-	sa.sa_mask = my_mask; //Signals to be masked in handler
+	sigemptyset(&sigusr_mask); 
+	sa.sa_mask = sigusr_mask; //Signals to be masked in handler (none)
+	sigaddset(&sigusr_mask, SIGUSR1);
+	sigprocmask(SIG_BLOCK, &sigusr_mask, NULL); //ALWAYS block SIGUSR1 in this process
     sigaction(SIGALRM, &sa, NULL); 
 
 	//***Init of shared memory
+	#if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory  
+	    memid = shmget(SHM_KEY, 1, 0666 | IPC_CREAT); 
+	    TEST_ERROR; 
+	    shmctl ( memid , IPC_RMID , NULL ) ; 
+	    TEST_ERROR; 
+	#endif
     infoshared = get_shared_data();
 
 	//***Init of semaphores
     semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
 	TEST_ERROR;
+	#if CM_IPC_AUTOCLEAN//deallocate and re allocate semaphores 
+  		semctl(semid, 0, IPC_RMID);     
+  		TEST_ERROR; 
+    	semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores 
+  		TEST_ERROR; 
+	#endif
+
 	semctl(semid, SEM_NUM_INIT, SETVAL, init_people+1);//Sem init to syncronize the start of the individuals, initialized to init_people+1
 	TEST_ERROR;
     semctl(semid, SEM_NUM_MUTEX, SETVAL, 1);//Sem mutex to control access to the shared memory, initialized to 1
@@ -78,6 +93,15 @@ int main(){
 	msgid = msgget(MSGQ_KEY_COMMON, 0666 | IPC_CREAT);
 	msgid_prop = msgget(MSGQ_KEY_PROPOSALS, 0666 | IPC_CREAT);
 	TEST_ERROR;
+	#if CM_IPC_AUTOCLEAN//deallocate and re allocate the queue to avoid messages from precedent runs 
+    	msgctl ( msgid , IPC_RMID , NULL ) ;//Empty the queue if already present 
+  		TEST_ERROR; 
+    	msgctl ( msgid_prop , IPC_RMID , NULL ) ;//Empty the queue if already present 
+  		TEST_ERROR; 
+    	msgid = msgget(MSGQ_KEY_COMMON, 0666 | IPC_CREAT); 
+  		msgid_prop = msgget(MSGQ_KEY_PROPOSALS, 0666 | IPC_CREAT); 
+  		TEST_ERROR; 
+	#endif
     
 	//Initialize array of b individuals in shared memory (no need for semaphore here)
 	for(k=0; k<MAX_INIT_PEOPLE; k++){
@@ -290,7 +314,6 @@ int main(){
 		    errno = 0;//Since we just got out of a wait until error, let's reset errno
 
 		    //DEALLOCATE SHARED STUFF
-		    int memid;
     		memid = shmget(SHM_KEY, sizeof(shared_data), 0666 | IPC_CREAT);
     		shmctl (memid,IPC_RMID,NULL);
 			TEST_ERROR;
@@ -368,6 +391,7 @@ pid_t create_individual(char type, char * name, unsigned long genome)
             break; 
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
+			sleep(1);
 			sigaction(SIGALRM, NULL,NULL); // Remove any handler
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);
