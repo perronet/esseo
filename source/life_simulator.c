@@ -158,7 +158,8 @@ int main(){
 
     if(birth_death > 0){ 
     	alarm(birth_death); //Will send sigalarm every birth_death seconds
- 	}else{ //No child will be killed
+ 	}
+ 	else{ //No child will be killed
  		birth_death = sim_time;
  		alarm(sim_time);//alarm will only trigger at the end of simulation
  	}
@@ -171,8 +172,7 @@ int main(){
     int msgcount = 0;
 	forever{
 		errno = 0;
-	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1)//wait for response (will only receive from A processes)
-		{
+	    if(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), 0) != -1){//wait for response (will only receive from A processes)
 			sigprocmask(SIG_BLOCK, &mask, NULL);
 
 			msgcount++;
@@ -207,37 +207,30 @@ int main(){
 
 		LOG(LT_MANAGER_ACTIONS, "MANAGER acquiring MUTEX\n");
 
-		if(state == RUNNING)
-		{
+		if(state == RUNNING){
 			//****************************************************************
 		    //BIRTH_DEATH KILL ROUTINE
 		    //****************************************************************
 		    
-			while(to_kill_count > 0)
-			{//It's killing time
+			while(to_kill_count > 0){//It's killing time
 
 		    	int oldestIndex = -1;
-		    	for(int i = 0; i < MAX_INIT_PEOPLE; i++)
-		    	{
+		    	for(int i = 0; i < MAX_INIT_PEOPLE; i++){
 		    		pid_t current = infoshared->alive_individuals[i];
-		    		if(current > 0 && (oldestIndex < 0 || current < infoshared->alive_individuals[oldestIndex]))
-		    		{
+		    		if(current > 0 && (oldestIndex < 0 || current < infoshared->alive_individuals[oldestIndex])){
 		    			oldestIndex = i;
 		    		}
 		    	}
 
-		    	if(oldestIndex >= 0)
-		    	{//found a good target
-	       			//LOG(LT_ALARM,"FOUND target to kill at %d\n", oldestIndex);
+		    	if(oldestIndex >= 0){//found a good target
+	       			LOG(LT_ALARM,"FOUND target to kill at %d\n", oldestIndex);
 
 		    		pid_t target = infoshared->alive_individuals[oldestIndex]; //save pid
 		    		infoshared->alive_individuals[oldestIndex] = 0;//remove from alive array
 
-					if(kill(target, SIGUSR1) != -1)
-					{
-						if(waitpid(target, &status, 0) == target)
-						{
-		       				//LOG(LT_ALARM,"KILLING pid %d\n", target);
+					if(kill(target, SIGUSR1) != -1){
+						if(waitpid(target, &status, 0) == target){
+		       				LOG(LT_ALARM,"KILLING pid %d\n", target);
 
 							//Let's create a new individual
 
@@ -248,18 +241,15 @@ int main(){
 		       				pid_t child_pid = create_individual(next_type,next_name,rnd_genome(2, genes));//Only the father will return from this call
 		       				LOG(LT_SHIPPING,"Created new individual of type %c with pid %d\n", next_type, child_pid);
 	       				}
-	       				else
-	       				{
+	       				else{
 			    			LOG(LT_GENERIC_ERROR, "ERROR: Manager could't wait killed individual with pid %d", target);
 	       				}
 					}
-			    	else
-			    	{
+			    	else{
 			    		LOG(LT_GENERIC_ERROR, "ERROR: Manager could't send kill signal individual with pid %d", target);
 			    	}
 		    	}
-		    	else
-		    	{
+		    	else{
 		    		LOG(LT_GENERIC_ERROR, "ERROR: Manager could't find an individual to kill. Is the population 0?");
 		    	}
 
@@ -279,8 +269,7 @@ int main(){
 			LOG(LT_ALARM,"Killing %d remaining individuals...\nPids:{", infoshared->current_pop_a + infoshared->current_pop_b);
 			
 			unsigned int kills = 0;
-		    for(int i = 0; i < MAX_INIT_PEOPLE; i++)
-		    {// Kill everyone
+		    for(int i = 0; i < MAX_INIT_PEOPLE; i++){// Kill everyone
 		    	if(infoshared->alive_individuals[i] != 0)
 		    	{
 		       		LOG(LT_ALARM,"%d,", infoshared->alive_individuals[i]);
@@ -293,28 +282,24 @@ int main(){
 	        
 	        int alive = infoshared->current_pop_a + infoshared->current_pop_b - kills;
 
-		    if(alive > 0)
-		    {
+		    if(alive > 0){
 		    	LOG(LT_GENERIC_ERROR,"ERROR: %u individuals still alive\n", alive);
 		    }
 
 		    MUTEX_V
 
-		    while ((pid = waitpid(-1, &status, WNOHANG)) != -1 || errno != ECHILD) 
-		    { 
+		    while ((pid = waitpid(-1, &status, WNOHANG)) != -1 || errno != ECHILD) { 
 			    msgbuf msg;
-			    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1 && errno!=EINTR)
-		        {//Eliminate any A process pending
+			    while(msgrcv(msgid, &msg, MSGBUF_LEN, getpid(), IPC_NOWAIT) != -1 && errno!=EINTR){//Eliminate any A process pending
 			       	LOG(LT_ALARM,"RECEIVED MSG PID=%d\n", msg.info.pid);
 					kill(msg.info.pid, SIGKILL);
 
-			    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1 && errno!=EINTR)
-		    		{//Eliminate any B process pending
+			    	while(msgrcv(msgid, &msg, MSGBUF_LEN, msg.info.pid, IPC_NOWAIT) != -1 && errno!=EINTR){//Eliminate any B process pending
 						kill(msg.info.pid, SIGKILL);
 			    	}
 		        }
 
-		       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
+				LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
 		    } //"kill" all zombies!
 
 			LOG(LT_SHIPPING,"\n#########################################\nSIMULATION END!\n");
@@ -360,7 +345,7 @@ char new_individual_type(unsigned int a_pop, unsigned int b_pop){
 
 	char new_type = rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B';
 	
-	//LOG(LT_MANAGER_ACTIONS, "Requested ind type. Since a_pop =%u,b_pop=%u,a_type_probability=%f,result was %c\n",a_pop,b_pop,a_type_probability,new_type);
+	LOG(LT_MANAGER_ACTIONS, "Requested ind type. Since a_pop =%u,b_pop=%u,a_type_probability=%f,result was %c\n",a_pop,b_pop,a_type_probability,new_type);
     
     return new_type; //random type
 }
@@ -390,8 +375,7 @@ void append_newchar(char * dest, char * src){
     }	
 }
 
-pid_t create_individual(char type, char * name, unsigned long genome)
-{
+pid_t create_individual(char type, char * name, unsigned long genome){
     CHECK_VALID_IND_TYPE(type)
     pid_t child_pid = 0;
 
@@ -428,7 +412,7 @@ pid_t create_individual(char type, char * name, unsigned long genome)
 				infoshared->current_pop_a ++;
 			else
 				infoshared->current_pop_b ++;
-			//LOG(LT_MANAGER_ACTIONS, "Pop a %d pop b %d\n", infoshared->current_pop_a, infoshared->current_pop_b);
+			LOG(LT_MANAGER_ACTIONS, "Pop a %d pop b %d\n", infoshared->current_pop_a, infoshared->current_pop_b);
 			
 			LOG(LT_INDIVIDUALS_CREATION, "Created individual with pid %d of type %c\n", child_pid, type);
 
@@ -440,8 +424,7 @@ pid_t create_individual(char type, char * name, unsigned long genome)
         return child_pid;
 }
 
-void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time)
-{
+void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time){
 	FILE *config_file = NULL;
 
     *init_people = INIT_PEOPLE_DEFAULT; // initial population value
@@ -453,8 +436,7 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 	if ((config_file = fopen(CONFIG_FILE_NAME, "r")) == NULL) {
 		LOG(LT_GENERIC_ERROR, "Error opening config file \"%s\"., MSG:%s\n", CONFIG_FILE_NAME, strerror(errno));
 	}
-	else
-	{
+	else{
 		char options_buffer [INPUT_BUF_LEN];
 		char values_buffer [INPUT_BUF_LEN];
 		char * current_buffer = options_buffer;//We will swap between the two above buffers via this one
@@ -462,48 +444,39 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 		int buf_ind = 0;//index of buffer
 		char c;//current char
 		bool end_file = false;
-		while (!end_file) 
-		{
+		while (!end_file) {
 			c = fgetc(config_file);
 			end_file = c == EOF;
 
-			if(c != '=' && c != '\n' && c != EOF)
-			{//store a token string inside the buffer
+			if(c != '=' && c != '\n' && c != EOF){//store a token string inside the buffer
 				current_buffer[buf_ind] = c;
 				buf_ind ++;
 			}
-			else
-			{//we have a token
+			else {//we have a token
 				current_buffer[buf_ind] = '\0';//Manually set EOS
 				buf_ind = 0;//reset index to restart reading
 
-				if(current_buffer == values_buffer)
-				{//We should have something in the options_buffer and in the values_buffer. Let's look.
+				if(current_buffer == values_buffer){//We should have something in the options_buffer and in the values_buffer. Let's look.
 					
 					unsigned long value = string_to_ulong(values_buffer);// let's use the biggest type initially
 
-					if(strcmp(options_buffer,INIT_PEOPLE_CONFIG_NAME) == 0)
-					{
+					if(strcmp(options_buffer,INIT_PEOPLE_CONFIG_NAME) == 0){
 						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",INIT_PEOPLE_CONFIG_NAME,value);
 						*init_people = value;
 					}
-					else if(strcmp(options_buffer,GENES_CONFIG_NAME)== 0)
-					{
+					else if(strcmp(options_buffer,GENES_CONFIG_NAME)== 0){
 						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",GENES_CONFIG_NAME,value);
 						*genes = value;
 					}
-					else if(strcmp(options_buffer,BIRTH_DEATH_CONFIG_NAME)== 0)
-					{
+					else if(strcmp(options_buffer,BIRTH_DEATH_CONFIG_NAME)== 0){
 						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",BIRTH_DEATH_CONFIG_NAME,value);
 						*birth_death = value;
 					}
-					else if(strcmp(options_buffer,SIM_TIME_CONFIG_NAME)== 0)
-					{
+					else if(strcmp(options_buffer,SIM_TIME_CONFIG_NAME)== 0){
 						LOG(LT_MANAGER_ACTIONS,"Read %s from file, has value %lu\n",SIM_TIME_CONFIG_NAME,value);
 						*sim_time = value;
 					}
-					else
-					{//invalid!
+					else{//invalid!
 						LOG(LT_GENERIC_ERROR,"Invalid token '%s'\n",options_buffer);
 					}
 
@@ -571,7 +544,6 @@ void handle_signal(int signal) {
     } 
     else{ 
     	LOG(LT_SHIPPING,"\nSimulation ending...\n");
-
 	    state = FINISHED;
 	}
 }

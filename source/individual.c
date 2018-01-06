@@ -1,4 +1,4 @@
-#include "life_sim_lib.h"
+    #include "life_sim_lib.h"
 
 #define TYPE_A_ADAPTMENT_STEPS 5.f //Each time an A individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = accepts anyone) following this steps
 #define TYPE_B_ADAPTMENT_STEPS 5.f //Each time a B individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = contacts anyone) following this steps
@@ -34,11 +34,6 @@ bool is_queue_full(int queue);
 void send_message(int msgid, pid_t to, char msg, ind_data * content);
 //Signal handler
 void handle_sigusr(int signal);
-/*
-//-1 on semaphore + block signals
-void access_resource();
-//+1 on semaphore + unblock signals
-void release_resource();*/
 
 int main(int argc, char *argv[]){
 
@@ -71,16 +66,14 @@ int main(int argc, char *argv[]){
     bool wait_to_begin = false;//when the individual starts, it could have to wait before beginning its behaviour. This is passed via arguments
     refused_individuals_count = 0;
     info.pid = getpid();
-    if(argc >= 5)
-    {//Read data. Currently the positions of this values are hardcoded. We do not expect them to be scrambled
+    if(argc >= 5){//Read data. Currently the positions of this values are hardcoded. We do not expect them to be scrambled
         info.type = *argv[1];
         strcpy(info.name, argv[2]);
         info.genome = string_to_ulong(argv[3]);
         wait_to_begin = *argv[4];
     }
     
-    if(wait_to_begin)
-    {
+    if(wait_to_begin){
 	    sops.sem_num = SEM_NUM_INIT;
 		sops.sem_flg = 0; 
 	    sops.sem_op = -1;
@@ -127,8 +120,7 @@ void a_behaviour(){
     MUTEX_P
 
     bool found = false;
-    for(int i = 0; i < MAX_AGENDA_LEN && !found; i++)
-    {//Find a nice spot to place information
+    for(int i = 0; i < MAX_AGENDA_LEN && !found; i++){//Find a nice spot to place information
         ind_data * slot = &(infoshared->agenda[i]); 
         if(!IS_TYPE_A(slot->type))
         {//This slot is free
@@ -155,8 +147,7 @@ void a_behaviour(){
         
         LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
 
-        if(get_index_in_array(infoshared->alive_individuals, msg.info.pid) != -1)//This message could be from a dead individual
-        {
+        if(get_index_in_array(infoshared->alive_individuals, msg.info.pid) != -1){//This message could be from a dead individual
 #if CM_SAY_ALWAYS_YES
 	        if(true)
 #else
@@ -184,9 +175,9 @@ void a_behaviour(){
 #endif
 	            say_no_to_anyone();//turn down any other request
 
-	            while(is_queue_full(msgid_common))
-	            {
-	            	usleep(1);//this is useful to prevent flooding of the common queue which could cause the manager to hang
+	            while(is_queue_full(msgid_common)){
+	            	//this is useful to prevent flooding of the common queue which could cause the manager to hang
+                    //It could seem a bad way to wait, but this handles rare cases in which the queue is stuck
 	            }
 
 	            send_message(msgid_proposals, partner_pid, 'Y',&info);//Communicating to process B acceptance
@@ -195,8 +186,7 @@ void a_behaviour(){
 
 	            exit(EXIT_SUCCESS);
 	        }
-	        else
-	        {
+	        else{
 
         		MUTEX_V
 
@@ -205,8 +195,7 @@ void a_behaviour(){
 	            check_and_adapt();
 	        }
 		}
-		else
-		{
+		else{
         	MUTEX_V
 		}
     }
@@ -215,12 +204,10 @@ void a_behaviour(){
 void b_behaviour(){
     acceptance_threshold = TYPE_B_ADAPTMENT_STEPS;
 
-    for(int i = 0; i < MAX_AGENDA_LEN; i++) 
-    {//Find a possible partner
+    for(int i = 0; i < MAX_AGENDA_LEN; i++) {//Find a possible partner
         MUTEX_P
 
-        if(IS_TYPE_A(infoshared->agenda[i].type) && !is_queue_full(-1))
-        {
+        if(IS_TYPE_A(infoshared->agenda[i].type) && !is_queue_full(-1)){
 #if CM_SAY_ALWAYS_YES
             if(true)
 #else
@@ -245,8 +232,7 @@ void b_behaviour(){
 
                 MUTEX_P
 
-                if(msg.mtext == 'Y')
-                {//We got lucky
+                if(msg.mtext == 'Y'){//We got lucky
 #if CM_SLOW_MO
                     sleep(SLOW_MO_SLEEP_TIME);
 #endif
@@ -262,22 +248,19 @@ void b_behaviour(){
                     //infoshared->current_pop_b --;
                     exit(EXIT_SUCCESS);
                 }
-                else
-                {
+                else{
                     LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d got REFUSED from %d\n",getpid(), msg.info.pid);
                 }
 
                 MUTEX_V
             }
-            else
-            {//we don't like this partner
+            else{//we don't like this partner
                 MUTEX_V
                 refused_individuals_count ++;
                 check_and_adapt();
             }
         }
-        else
-        {
+        else{
             MUTEX_V 
         }
 
@@ -290,8 +273,7 @@ void b_behaviour(){
 }
 
 
-bool evaluate_possible_partner(unsigned long genome)
-{
+bool evaluate_possible_partner(unsigned long genome){
     int gcdiv = gcd(genome, info.genome);
     float current_threshold = acceptance_threshold / (IS_TYPE_A(info.type) ? TYPE_A_ADAPTMENT_STEPS : TYPE_B_ADAPTMENT_STEPS);
     bool result = genome % info.genome == 0 /*<-- should be useless but let's put it to avoid floating point errors */
@@ -301,18 +283,15 @@ bool evaluate_possible_partner(unsigned long genome)
     return result;
 }
 
-void check_and_adapt()
-{
+void check_and_adapt(){
     LOG(LT_INDIVIDUALS_ADAPTATION, "Process type %c %d is adapting to %d!\n", info.type, getpid(),acceptance_threshold-1);
-    if(refused_individuals_count > (IS_TYPE_A(info.type) ? infoshared->current_pop_b : infoshared->current_pop_a))
-    {//we refused more individuals than there are now in the population since the last adaptment. Time to adapt again!
-        if(acceptance_threshold > 0)
-        {
+    if(refused_individuals_count > (IS_TYPE_A(info.type) ? infoshared->current_pop_b : infoshared->current_pop_a)){
+    //we refused more individuals than there are now in the population since the last adaptment. Time to adapt again!
+        if(acceptance_threshold > 0){
             acceptance_threshold --;
             refused_individuals_count = 0;
         }
-        else
-        {
+        else{
             LOG(LT_GENERIC_ERROR, "Process type %c %d tried to lower the acceptance_threshold to less than 0, this should never happen!\n", info.type, getpid());
         }
     }
@@ -321,33 +300,27 @@ void check_and_adapt()
 //****************************************************************
 //SIGNAL & MESSAGE HANDLING
 //****************************************************************
-void say_no_to_anyone()
-{
+void say_no_to_anyone(){
 	msgbuf msg_to_refuse;
 	errno = 0;
-	while(errno != ENOMSG)
-	{
-	    if(msgrcv(msgid_proposals, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1)
-	    {//Let's turn down any other pending request
+	while(errno != ENOMSG){
+	    if(msgrcv(msgid_proposals, &msg_to_refuse, MSGBUF_LEN, getpid(), IPC_NOWAIT)!= -1){//Let's turn down any other pending request
 			if(get_index_in_array(infoshared->alive_individuals,msg_to_refuse.info.pid))//if process is still alive
 	        	send_message(msgid_proposals,msg_to_refuse.info.pid, 'N', &info);
 	    }
 	}
 }
 
-bool is_queue_full(int queue)
-{
+bool is_queue_full(int queue){
 	bool is_full = false;
 
-	if(queue == msgid_common || queue <= 0)
-	{
+	if(queue == msgid_common || queue <= 0){
 		struct msqid_ds buf;
 		msgctl(msgid_common, IPC_STAT, &buf);
 		is_full = buf.msg_qnum > MAX_QUEUE_SAFE_MSG;
 	}
 
-	if(queue == msgid_proposals || queue <= 0)
-	{
+	if(queue == msgid_proposals || queue <= 0){
 		struct msqid_ds buf;
 		msgctl(msgid_proposals, IPC_STAT, &buf);
 		is_full |= buf.msg_qnum > MAX_QUEUE_SAFE_MSG;
@@ -356,57 +329,31 @@ bool is_queue_full(int queue)
 	return is_full;
 }
 
-void send_message(int msgid, pid_t to, char msg_text, ind_data * content)
-{
+void send_message(int msgid, pid_t to, char msg_text, ind_data * content){
     msgbuf msg;
     msg.mtype = to;
     msg.mtext = msg_text;
     ind_data_cpy(&(msg.info), content);
     
     LOG(LT_INDIVIDUALS_ACTIONS,"INDIVIDUAL %d sending message %c\n", getpid(), msg_text);
-    while(msgsnd(msgid, &msg, MSGBUF_LEN, IPC_NOWAIT) == -1)
-    {//msgqueue could be full, let's yield the cpu to other processes
+    while(msgsnd(msgid, &msg, MSGBUF_LEN, IPC_NOWAIT) == -1){//msgqueue could be full, let's yield the cpu to other processes
     	LOG(LT_SHIPPING,"id: %s INDIVIDUAL %d sending message %c with type %lu to %s\n", msgid == msgid_common ? "Common" : "proposal",getpid(), msg_text, msg.mtype, to == getppid()? "Parent":"Another process");
 		//TEST_ERROR;
 		errno = 0;
-    	sleep(1);
     }
 }
 
 void handle_sigusr(int signal){ 
     LOG(LT_SHIPPING,"Terminated individual type %c with pid %d.\n", info.type, getpid());
 
-    if(IS_TYPE_A(info.type))
-	{//was A type
+    if(IS_TYPE_A(info.type)){//was A type
 		remove_from_agenda(infoshared->agenda,getpid());
 		infoshared->current_pop_a --;
 		say_no_to_anyone();
 	}
-	else
-	{
+	else{
 		infoshared->current_pop_b --;
 	}
 
     exit(EXIT_SUCCESS);
 }
-
-//****************************************************************
-//HELPER FUNCTIONS
-//****************************************************************
-
-/*
-//These two functions will always use the SEM_NUM_MUTEX semaphore
-void access_resource(){
-    sops.sem_op = -1;
-    semop(semid, &sops, 1);//Accessing resource
-    TEST_ERROR;
-    sigprocmask(SIG_BLOCK, &my_mask, NULL);//Block SIGUSR1 signals 
-    TEST_ERROR;
-}
-
-void release_resource(){
-    sops.sem_op = 1;
-    semop(semid, &sops, 1);//Releasing resource
-    TEST_ERROR;
-    sigprocmask(SIG_UNBLOCK, &my_mask, NULL);//Unblock SIGUSR1 signals
-}*/

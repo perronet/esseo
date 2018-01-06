@@ -2,8 +2,7 @@
 #include <string.h>
 
 //Sets up the stats
-void init_stats(life_sim_stats * stats)
-{
+void init_stats(life_sim_stats * stats){
 	stats->total_population_a = 0;
 	stats->total_population_b = 0;
 	stats->total_killed = 0;
@@ -12,8 +11,7 @@ void init_stats(life_sim_stats * stats)
 	stats->highest_genome_individual.genome = 0;
 }
 
-void register_individual_in_stats(life_sim_stats * stats, ind_data * individual)
-{
+void register_individual_in_stats(life_sim_stats * stats, ind_data * individual){
 	if(IS_TYPE_A(individual->type))
 		stats->total_population_a ++;
 	else
@@ -26,8 +24,7 @@ void register_individual_in_stats(life_sim_stats * stats, ind_data * individual)
 		ind_data_cpy(&stats->highest_genome_individual,individual);
 }
 
-void print_stats(life_sim_stats * stats)
-{
+void print_stats(life_sim_stats * stats){
 	LOG(LT_SHIPPING,"\n********** SIMULATION RESULTS **********\n");
 	LOG(LT_SHIPPING,"*                                      *\n");
 	LOG(LT_SHIPPING,"*    Total 'A' individuals  : %5u    *\n",stats->total_population_a);
