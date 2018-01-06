@@ -46,8 +46,7 @@ bool remove_from_agenda(ind_data * agenda, pid_t individual){
 	return false;//nothing found
 }
 
-void print_agenda(ind_data * agenda)
-{
+void print_agenda(ind_data * agenda){
 	LOG(LT_AGENDA_STATUS,"CURRENT AGENDA ########################\n");
 	for(int i = 0; i < MAX_AGENDA_LEN; i++)
 	{
@@ -73,8 +72,7 @@ void insert_pid(pid_t * array, pid_t pid){
     }
 }
 
-int get_index_in_array(pid_t * array, pid_t pid)
-{
+int get_index_in_array(pid_t * array, pid_t pid){
 	for(int i = 0; i < MAX_INIT_PEOPLE; i++){
 		if(array[i] == pid){
 			return i;
