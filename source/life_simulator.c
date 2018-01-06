@@ -34,6 +34,9 @@ pid_t create_individual(char type, char * name, unsigned long genome);
 //Reads the given parameters from the config file and sets them up
 void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int * birth_death,unsigned int * sim_time);
 
+struct sigaction sa;
+sigset_t  my_mask;
+
 int main(){
     //****************************************************************
     //SETTING UP SIMULATION
@@ -48,41 +51,43 @@ int main(){
 
     setup_params(&init_people,&genes,&birth_death,&sim_time);
 
-    int status, memid, i, k;
+    int status, i, k;
     ind_data partner_1, partner_2;
     char nextType, nextName[MAX_NAME_LEN];
-    struct sigaction sa; 
-	sigset_t  sigusr_mask; 
 
     init_stats(&stats);
    
 	//***Init of signal handlers and mask
     sa.sa_handler = &handle_signal; 
 	sa.sa_flags = SA_RESTART; 
-	sigemptyset(&sigusr_mask); 
-	sa.sa_mask = sigusr_mask; //Signals to be masked in handler (none)
-	sigaddset(&sigusr_mask, SIGUSR1);
-	sigprocmask(SIG_BLOCK, &sigusr_mask, NULL); //ALWAYS block SIGUSR1 in this process
-    sigaction(SIGALRM, &sa, NULL); 
+	sigemptyset(&my_mask); 
+	sa.sa_mask = my_mask; //Signals to be masked in handler
+    sigaction(SIGALRM, &sa, NULL);
+
+   	sigset_t kill_mask;
+	sigemptyset(&kill_mask);
+	sigaddset(&kill_mask, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &kill_mask, NULL);//Block SIGUSR1 signals 
 
 	//***Init of shared memory
-	#if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory  
-	    memid = shmget(SHM_KEY, 1, 0666 | IPC_CREAT); 
-	    TEST_ERROR; 
-	    shmctl ( memid , IPC_RMID , NULL ) ; 
-	    TEST_ERROR; 
-	#endif
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate shared memory
+    int memid;
+    memid = shmget(SHM_KEY, 1, 0666 | IPC_CREAT);
+    TEST_ERROR;
+    shmctl ( memid , IPC_RMID , NULL ) ;
+    TEST_ERROR;
+#endif
     infoshared = get_shared_data();
 
 	//***Init of semaphores
     semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
 	TEST_ERROR;
-	#if CM_IPC_AUTOCLEAN//deallocate and re allocate semaphores 
-  		semctl(semid, 0, IPC_RMID);     
-  		TEST_ERROR; 
-    	semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores 
-  		TEST_ERROR; 
-	#endif
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate semaphores
+	semctl(semid, 0, IPC_RMID);    
+	TEST_ERROR;
+    semid = semget(SEMAPHORE_SET_KEY, SEM_NUM_MAX, 0666 | IPC_CREAT); //Array of 2 semaphores
+	TEST_ERROR;
+#endif
 
 	semctl(semid, SEM_NUM_INIT, SETVAL, init_people+1);//Sem init to syncronize the start of the individuals, initialized to init_people+1
 	TEST_ERROR;
@@ -93,15 +98,15 @@ int main(){
 	msgid = msgget(MSGQ_KEY_COMMON, 0666 | IPC_CREAT);
 	msgid_prop = msgget(MSGQ_KEY_PROPOSALS, 0666 | IPC_CREAT);
 	TEST_ERROR;
-	#if CM_IPC_AUTOCLEAN//deallocate and re allocate the queue to avoid messages from precedent runs 
-    	msgctl ( msgid , IPC_RMID , NULL ) ;//Empty the queue if already present 
-  		TEST_ERROR; 
-    	msgctl ( msgid_prop , IPC_RMID , NULL ) ;//Empty the queue if already present 
-  		TEST_ERROR; 
-    	msgid = msgget(MSGQ_KEY_COMMON, 0666 | IPC_CREAT); 
-  		msgid_prop = msgget(MSGQ_KEY_PROPOSALS, 0666 | IPC_CREAT); 
-  		TEST_ERROR; 
-	#endif
+#if CM_IPC_AUTOCLEAN//deallocate and re allocate the queue to avoid messages from precedent runs
+    msgctl ( msgid , IPC_RMID , NULL ) ;//Empty the queue if already present
+	TEST_ERROR;
+    msgctl ( msgid_prop , IPC_RMID , NULL ) ;//Empty the queue if already present
+	TEST_ERROR;
+    msgid = msgget(MSGQ_KEY_COMMON, 0666 | IPC_CREAT);
+	msgid_prop = msgget(MSGQ_KEY_PROPOSALS, 0666 | IPC_CREAT);
+	TEST_ERROR;
+#endif
     
 	//Initialize array of b individuals in shared memory (no need for semaphore here)
 	for(k=0; k<MAX_INIT_PEOPLE; k++){
@@ -113,7 +118,7 @@ int main(){
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
     //****************************************************************
-    srand(getpid() + time(NULL));
+    srand(getpid() + time(NULL));//FIXME This works but it's weak and ugly, needs replacement
 
     for(i=0;i<init_people;i++){
     	nextType = new_individual_type(stats.total_population_a,stats.total_population_b);//We use the stats here and not the shared info because processes will sleep until we finish this. We could get inconsistent data.
@@ -126,7 +131,7 @@ int main(){
 			nextType = 'A';
 #endif
 
-        create_individual(nextType,nextName,rnd_genome(2, genes));
+        create_individual(nextType,nextName,rnd_genome(2, genes));//Only the father will return from this call
     } 
     
 	sops.sem_num = SEM_NUM_INIT;
@@ -183,10 +188,12 @@ int main(){
 
 			int gcdiv = gcd(partner_1.genome, partner_2.genome);
 			nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
+			//nextType = 'A';
 			append_newchar(nextName, partner_1.name);
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
 
 			nextType = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
+			//nextType = 'B';
 			append_newchar(nextName, partner_2.name);
 
 			create_individual(nextType, nextName, rnd_genome(gcdiv, genes));
@@ -221,7 +228,7 @@ int main(){
 
 		    	if(oldestIndex >= 0)
 		    	{//found a good target
-	       			LOG(LT_ALARM,"FOUND target to kill at %d\n", oldestIndex);
+	       			//LOG(LT_ALARM,"FOUND target to kill at %d\n", oldestIndex);
 
 		    		pid_t target = infoshared->alive_individuals[oldestIndex]; //save pid
 		    		infoshared->alive_individuals[oldestIndex] = 0;//remove from alive array
@@ -230,13 +237,15 @@ int main(){
 					{
 						if(waitpid(target, &status, 0) == target)
 						{
+		       				//LOG(LT_ALARM,"KILLING pid %d\n", target);
+
 							//Let's create a new individual
 
 		    				char next_type, next_name[MAX_NAME_LEN];
 
 							next_type = new_individual_type(infoshared->current_pop_a,infoshared->current_pop_b);
 					        next_name[0] = rnd_char();
-		       				pid_t child_pid = create_individual(next_type,next_name,rnd_genome(2, genes));
+		       				pid_t child_pid = create_individual(next_type,next_name,rnd_genome(2, genes));//Only the father will return from this call
 		       				LOG(LT_SHIPPING,"Created new individual of type %c with pid %d\n", next_type, child_pid);
 	       				}
 	       				else
@@ -305,8 +314,8 @@ int main(){
 			    	}
 		        }
 
-		       LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
-		    } 
+		       // LOG(LT_ALARM,"Got info of child with PID=%d, status=0x%04X\n", pid, status);
+		    } //"kill" all zombies!
 
 			LOG(LT_SHIPPING,"\n#########################################\nSIMULATION END!\n");
 			LOG(LT_SHIPPING,"#########################################\n\n");
@@ -350,7 +359,9 @@ char new_individual_type(unsigned int a_pop, unsigned int b_pop){
 		a_type_probability = (float)b_pop / (float)(b_pop + a_pop); // This way we a types have more chances to appear when they are fewer
 
 	char new_type = rand()%100 <= a_type_probability * 100.0 ? 'A' : 'B';
-
+	
+	//LOG(LT_MANAGER_ACTIONS, "Requested ind type. Since a_pop =%u,b_pop=%u,a_type_probability=%f,result was %c\n",a_pop,b_pop,a_type_probability,new_type);
+    
     return new_type; //random type
 }
 
@@ -391,12 +402,14 @@ pid_t create_individual(char type, char * name, unsigned long genome)
             break; 
         case 0://Child process
             ;//This is necessary to make the compiler happy, since we cannot have declarations next to labels. A label can only be part of a statement and a declaration is not a statement
+	       	//sleep(1);//with this sleep you can test what happens if this process is killed before executing the execve
 			sigaction(SIGALRM, NULL,NULL); // Remove any handler
+			//sigprocmask(SIG_UNBLOCK, &mask, NULL);
             char genome_arg[50];
             sprintf(genome_arg,"%lu",genome);
             char wait_before_starting[1];
             wait_before_starting[0] = state == STARTING;//At the beginning of the simulation, individuals have to wait before starting to execute their behaviour
-            char * argv[] = {INDIVIDUAL_FILE_NAME,&type,name,genome_arg, wait_before_starting, NULL};
+            char * argv[] = {INDIVIDUAL_FILE_NAME,&type,name,genome_arg, wait_before_starting, NULL};//File name goes first and NULL is last to respect standard
             execve(INDIVIDUAL_FILE_NAME,argv,NULL);
             TEST_ERROR;
             exit(EXIT_FAILURE);
@@ -415,8 +428,11 @@ pid_t create_individual(char type, char * name, unsigned long genome)
 				infoshared->current_pop_a ++;
 			else
 				infoshared->current_pop_b ++;
+			//LOG(LT_MANAGER_ACTIONS, "Pop a %d pop b %d\n", infoshared->current_pop_a, infoshared->current_pop_b);
 			
 			LOG(LT_INDIVIDUALS_CREATION, "Created individual with pid %d of type %c\n", child_pid, type);
+
+			//sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
             break;
         }
@@ -532,6 +548,8 @@ void setup_params(unsigned int * init_people,unsigned long * genes,unsigned int 
 
 	if(config_file)
 		fclose(config_file);
+
+	//exit(EXIT_SUCCESS);//use it to test input only
 }
 
 //****************************************************************
