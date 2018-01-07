@@ -143,6 +143,11 @@ void a_behaviour(){
         //****************************************************************
         //THIS INDIVIDUAL HAS BEEN CONTACTED. LET'S LOOK
         //****************************************************************
+
+#if CM_SLOW_MO
+                sleep(SLOW_MO_SLEEP_TIME);
+#endif
+
         MUTEX_P
         
         LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d was contacted by B %d\n",getpid(), msg.info.pid);
@@ -154,9 +159,6 @@ void a_behaviour(){
 	        if(evaluate_possible_partner(msg.info.genome))
 #endif
 	        {
-#if CM_SLOW_MO
-	            sleep(SLOW_MO_SLEEP_TIME);
-#endif
 	            LOG(LT_INDIVIDUALS_ACTIONS,"Process A %d accepted B %d\n",getpid(), msg.info.pid);
 
 	            pid_t partner_pid = msg.info.pid;//Let's save partner's pid
@@ -205,6 +207,10 @@ void b_behaviour(){
     acceptance_threshold = TYPE_B_ADAPTMENT_STEPS;
 
     for(int i = 0; i < MAX_AGENDA_LEN; i++) {//Find a possible partner
+        #if CM_SLOW_MO
+                sleep(SLOW_MO_SLEEP_TIME);
+        #endif
+
         MUTEX_P
 
         if(IS_TYPE_A(infoshared->agenda[i].type) && !is_queue_full(-1)){
@@ -214,9 +220,7 @@ void b_behaviour(){
             if(evaluate_possible_partner(infoshared->agenda[i].genome))
 #endif
             {
-#if CM_SLOW_MO
-                sleep(SLOW_MO_SLEEP_TIME);
-#endif
+
                 LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d contacting %d\n",getpid(), infoshared->agenda[i].pid);
                 
                 send_message(msgid_proposals, infoshared->agenda[i].pid,'Y', &info);//proposal to A type process
@@ -233,9 +237,7 @@ void b_behaviour(){
                 MUTEX_P
 
                 if(msg.mtext == 'Y'){//We got lucky
-#if CM_SLOW_MO
-                    sleep(SLOW_MO_SLEEP_TIME);
-#endif
+
 
                     LOG(LT_INDIVIDUALS_ACTIONS,"Process B %d got lucky with %d\n",getpid(), msg.info.pid);
 
@@ -256,6 +258,9 @@ void b_behaviour(){
             }
             else{//we don't like this partner
                 MUTEX_V
+                #if CM_SLOW_MO
+                        sleep(SLOW_MO_SLEEP_TIME);
+                #endif
                 refused_individuals_count ++;
                 check_and_adapt();
             }
