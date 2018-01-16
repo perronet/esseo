@@ -118,7 +118,7 @@ int main(){
     //****************************************************************
     //FIRST INITIALIZATION OF INDIVIDUALS
     //****************************************************************
-    srand(getpid() + time(NULL));//FIXME This works but it's weak and ugly, needs replacement
+    srand(getpid() + time(NULL));
 
     for(i=0;i<init_people;i++){
     	nextType = new_individual_type(stats.total_population_a,stats.total_population_b);//We use the stats here and not the shared info because processes will sleep until we finish this. We could get inconsistent data.
