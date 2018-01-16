@@ -97,7 +97,7 @@
 
 #define INIT_PEOPLE_CONFIG_NAME "init_people"
 #define INIT_PEOPLE_DEFAULT 20
-#define MAX_INIT_PEOPLE 1000
+#define MAX_INIT_PEOPLE 8000
 #define GENES_CONFIG_NAME "genes"
 #define GENES_DEFAULT 100
 #define BIRTH_DEATH_CONFIG_NAME "birth_death"

@@ -1,4 +1,4 @@
-    #include "life_sim_lib.h"
+#include "life_sim_lib.h"
 
 #define TYPE_A_ADAPTMENT_STEPS 5.f //Each time an A individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = accepts anyone) following this steps
 #define TYPE_B_ADAPTMENT_STEPS 5.f //Each time a B individual finds out it cannot reproduce, it will decrease his acceptance threshold by a percentage towards 0 (0 = contacts anyone) following this steps
