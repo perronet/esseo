@@ -1,5 +1,5 @@
 # esseo
-A metaphore of life.
+A school project.
 
 ## What this project is
 
